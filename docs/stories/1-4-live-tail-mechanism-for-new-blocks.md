@@ -1,6 +1,6 @@
 # Story 1.4: Live-Tail Mechanism for New Blocks
 
-Status: drafted
+Status: ready-for-dev
 
 ## Story
 
@@ -249,7 +249,7 @@ LIVETAIL_POLL_INTERVAL=2s          # Polling interval (default: 2 seconds)
 
 ### Context Reference
 
-<!-- Path(s) to story context XML will be added here by context workflow -->
+- [Story Context XML](1-4-live-tail-mechanism-for-new-blocks.context.xml)
 
 ### Agent Model Used
 
