@@ -3,29 +3,26 @@ package db
 import (
 	"errors"
 	"fmt"
-	"log/slog"
 
 	"github.com/golang-migrate/migrate/v4"
 	_ "github.com/golang-migrate/migrate/v4/database/postgres"
 	_ "github.com/golang-migrate/migrate/v4/source/file"
+	"github.com/hieutt50/go-blockchain-explorer/internal/util"
 )
 
 // RunMigrations executes database migrations from the migrations directory
 // It applies all pending up migrations to bring the database schema to the latest version
-func RunMigrations(config *Config, migrationsPath string, logger *slog.Logger) error {
+func RunMigrations(config *Config, migrationsPath string) error {
 	if config == nil {
 		return fmt.Errorf("config cannot be nil")
-	}
-	if logger == nil {
-		return fmt.Errorf("logger cannot be nil")
 	}
 	if migrationsPath == "" {
 		return fmt.Errorf("migrationsPath cannot be empty")
 	}
 
-	logger.Info("starting database migrations",
-		slog.String("migrations_path", migrationsPath),
-		slog.String("database", config.Name))
+	util.Info("starting database migrations",
+		"migrations_path", migrationsPath,
+		"database", config.Name)
 
 	// Build connection string for migrate library
 	// migrate uses a slightly different format with additional parameters
@@ -51,7 +48,7 @@ func RunMigrations(config *Config, migrationsPath string, logger *slog.Logger) e
 	// Run migrations
 	if err := m.Up(); err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
-			logger.Info("database schema is up to date, no migrations needed")
+			util.Info("database schema is up to date, no migrations needed")
 			return nil
 		}
 		return fmt.Errorf("failed to run migrations: %w", err)
@@ -59,11 +56,12 @@ func RunMigrations(config *Config, migrationsPath string, logger *slog.Logger) e
 
 	version, dirty, err := m.Version()
 	if err != nil {
-		logger.Warn("failed to get migration version after successful migration", slog.Any("error", err))
+		util.Warn("failed to get migration version after successful migration",
+			"error", err.Error())
 	} else {
-		logger.Info("migrations completed successfully",
-			slog.Uint64("version", uint64(version)),
-			slog.Bool("dirty", dirty))
+		util.Info("migrations completed successfully",
+			"version", version,
+			"dirty", dirty)
 	}
 
 	return nil
@@ -71,20 +69,17 @@ func RunMigrations(config *Config, migrationsPath string, logger *slog.Logger) e
 
 // RollbackMigrations rolls back the last migration
 // This should be used with caution, typically only in development or disaster recovery
-func RollbackMigrations(config *Config, migrationsPath string, logger *slog.Logger) error {
+func RollbackMigrations(config *Config, migrationsPath string) error {
 	if config == nil {
 		return fmt.Errorf("config cannot be nil")
-	}
-	if logger == nil {
-		return fmt.Errorf("logger cannot be nil")
 	}
 	if migrationsPath == "" {
 		return fmt.Errorf("migrationsPath cannot be empty")
 	}
 
-	logger.Warn("rolling back database migrations",
-		slog.String("migrations_path", migrationsPath),
-		slog.String("database", config.Name))
+	util.Warn("rolling back database migrations",
+		"migrations_path", migrationsPath,
+		"database", config.Name)
 
 	connString := fmt.Sprintf(
 		"postgres://%s:%s@%s:%d/%s?sslmode=disable",
@@ -107,7 +102,7 @@ func RollbackMigrations(config *Config, migrationsPath string, logger *slog.Logg
 	// Roll back one migration
 	if err := m.Steps(-1); err != nil {
 		if errors.Is(err, migrate.ErrNoChange) {
-			logger.Info("no migrations to roll back")
+			util.Info("no migrations to roll back")
 			return nil
 		}
 		return fmt.Errorf("failed to roll back migration: %w", err)
@@ -115,11 +110,12 @@ func RollbackMigrations(config *Config, migrationsPath string, logger *slog.Logg
 
 	version, dirty, err := m.Version()
 	if err != nil {
-		logger.Warn("failed to get migration version after rollback", slog.Any("error", err))
+		util.Warn("failed to get migration version after rollback",
+			"error", err.Error())
 	} else {
-		logger.Info("migration rolled back successfully",
-			slog.Uint64("version", uint64(version)),
-			slog.Bool("dirty", dirty))
+		util.Info("migration rolled back successfully",
+			"version", version,
+			"dirty", dirty)
 	}
 
 	return nil

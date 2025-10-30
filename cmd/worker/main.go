@@ -3,7 +3,6 @@ package main
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/signal"
 	"syscall"
@@ -19,16 +18,12 @@ func main() {
 		os.Exit(1)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-
-	logger.Info("starting blockchain explorer worker")
+	util.Info("starting blockchain explorer worker")
 
 	// Start metrics server in a goroutine
 	go func() {
 		if err := util.StartMetricsServer(); err != nil {
-			logger.Error("metrics server failed", "error", err.Error())
+			util.Error("metrics server failed", "error", err.Error())
 			os.Exit(1)
 		}
 	}()
@@ -37,11 +32,11 @@ func main() {
 	sigChan := make(chan os.Signal, 1)
 	signal.Notify(sigChan, syscall.SIGTERM, syscall.SIGINT)
 
-	logger.Info("worker started, waiting for signals")
+	util.Info("worker started, waiting for signals")
 
 	// Wait for shutdown signal
 	sig := <-sigChan
-	logger.Info("received signal",
+	util.Info("received signal",
 		"signal", sig.String(),
 	)
 
@@ -51,12 +46,12 @@ func main() {
 	ctx, cancel := context.WithTimeout(context.Background(), 30*time.Second)
 	defer cancel()
 
-	logger.Info("shutting down gracefully",
+	util.Info("shutting down gracefully",
 		"timeout_seconds", 30,
 	)
 
 	// Wait for context to complete or timeout
 	<-ctx.Done()
 
-	logger.Info("worker shutdown complete")
+	util.Info("worker shutdown complete")
 }

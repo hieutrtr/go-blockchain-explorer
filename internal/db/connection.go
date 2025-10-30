@@ -3,26 +3,22 @@ package db
 import (
 	"context"
 	"fmt"
-	"log/slog"
 
 	"github.com/jackc/pgx/v5/pgxpool"
+	"github.com/hieutt50/go-blockchain-explorer/internal/util"
 )
 
 // Pool wraps pgxpool.Pool to provide connection pooling
 type Pool struct {
 	*pgxpool.Pool
 	config *Config
-	logger *slog.Logger
 }
 
 // NewPool creates a new database connection pool
 // It establishes connections to PostgreSQL and verifies connectivity with a ping
-func NewPool(ctx context.Context, config *Config, logger *slog.Logger) (*Pool, error) {
+func NewPool(ctx context.Context, config *Config) (*Pool, error) {
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
-	}
-	if logger == nil {
-		return nil, fmt.Errorf("logger cannot be nil")
 	}
 
 	// Build connection pool configuration
@@ -41,8 +37,8 @@ func NewPool(ctx context.Context, config *Config, logger *slog.Logger) (*Pool, e
 	ctx, cancel := context.WithTimeout(ctx, config.ConnTimeout)
 	defer cancel()
 
-	logger.Info("connecting to database",
-		slog.String("config", config.SafeString()))
+	util.Info("connecting to database",
+		"config", config.SafeString())
 
 	pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
 	if err != nil {
@@ -55,22 +51,21 @@ func NewPool(ctx context.Context, config *Config, logger *slog.Logger) (*Pool, e
 		return nil, fmt.Errorf("failed to ping database: %w", err)
 	}
 
-	logger.Info("database connection established",
-		slog.Int("max_conns", config.MaxConns),
-		slog.Duration("idle_timeout", config.IdleTimeout),
-		slog.Duration("conn_lifetime", config.ConnLifetime))
+	util.Info("database connection established",
+		"max_conns", config.MaxConns,
+		"idle_timeout", config.IdleTimeout.String(),
+		"conn_lifetime", config.ConnLifetime.String())
 
 	return &Pool{
 		Pool:   pool,
 		config: config,
-		logger: logger,
 	}, nil
 }
 
 // Close closes the database connection pool
 func (p *Pool) Close() {
 	if p.Pool != nil {
-		p.logger.Info("closing database connection pool")
+		util.Info("closing database connection pool")
 		p.Pool.Close()
 	}
 }

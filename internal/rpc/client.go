@@ -3,9 +3,7 @@ package rpc
 import (
 	"context"
 	"fmt"
-	"log/slog"
 	"math/big"
-	"os"
 	"time"
 
 	"github.com/ethereum/go-ethereum"
@@ -19,7 +17,6 @@ import (
 type Client struct {
 	ethClient *ethclient.Client
 	config    *Config
-	logger    *slog.Logger
 }
 
 // NewClient creates a new RPC client with the provided configuration
@@ -32,12 +29,7 @@ func NewClient(config *Config) (*Client, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), config.ConnectionTimeout)
 	defer cancel()
 
-	// Initialize logger with JSON output
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-
-	logger.Info("connecting to ethereum rpc",
+	util.Info("connecting to ethereum rpc",
 		"url_length", len(config.RPCURL), // Don't log full URL (may contain API key)
 		"connection_timeout", config.ConnectionTimeout.String(),
 	)
@@ -45,18 +37,17 @@ func NewClient(config *Config) (*Client, error) {
 	// Connect to Ethereum RPC endpoint
 	ethClient, err := ethclient.DialContext(ctx, config.RPCURL)
 	if err != nil {
-		logger.Error("failed to connect to rpc endpoint",
+		util.Error("failed to connect to rpc endpoint",
 			"error", err.Error(),
 		)
 		return nil, fmt.Errorf("failed to connect to RPC endpoint: %w", err)
 	}
 
-	logger.Info("successfully connected to ethereum rpc")
+	util.Info("successfully connected to ethereum rpc")
 
 	return &Client{
 		ethClient: ethClient,
 		config:    config,
-		logger:    logger,
 	}, nil
 }
 
@@ -64,7 +55,7 @@ func NewClient(config *Config) (*Client, error) {
 func (c *Client) Close() {
 	if c.ethClient != nil {
 		c.ethClient.Close()
-		c.logger.Info("rpc client connection closed")
+		util.Info("rpc client connection closed")
 	}
 }
 
@@ -77,7 +68,7 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 
 	startTime := time.Now()
 
-	c.logger.Info("fetching block",
+	util.Info("fetching block",
 		"method", "eth_getBlockByNumber",
 		"block_height", height,
 	)
@@ -112,7 +103,7 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 		ctx,
 		retryCfg,
 		operation,
-		c.logger,
+		util.GlobalLogger,
 		fmt.Sprintf("GetBlockByNumber(height=%d)", height),
 	)
 
@@ -126,7 +117,7 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 			util.RecordRPCError(metricsErrorType)
 		}
 
-		c.logger.Error("failed to fetch block",
+		util.Error("failed to fetch block",
 			"method", "eth_getBlockByNumber",
 			"block_height", height,
 			"error", err.Error(),
@@ -135,7 +126,7 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 		return nil, err
 	}
 
-	c.logger.Info("successfully fetched block",
+	util.Info("successfully fetched block",
 		"method", "eth_getBlockByNumber",
 		"block_height", height,
 		"block_hash", block.Hash().Hex(),
@@ -155,7 +146,7 @@ func (c *Client) GetTransactionReceipt(ctx context.Context, txHash common.Hash) 
 
 	startTime := time.Now()
 
-	c.logger.Info("fetching transaction receipt",
+	util.Info("fetching transaction receipt",
 		"method", "eth_getTransactionReceipt",
 		"tx_hash", txHash.Hex(),
 	)
@@ -192,14 +183,14 @@ func (c *Client) GetTransactionReceipt(ctx context.Context, txHash common.Hash) 
 		ctx,
 		retryCfg,
 		operation,
-		c.logger,
+		util.GlobalLogger,
 		fmt.Sprintf("GetTransactionReceipt(hash=%s)", txHash.Hex()),
 	)
 
 	duration := time.Since(startTime)
 
 	if err != nil {
-		c.logger.Error("failed to fetch transaction receipt",
+		util.Error("failed to fetch transaction receipt",
 			"method", "eth_getTransactionReceipt",
 			"tx_hash", txHash.Hex(),
 			"error", err.Error(),
@@ -208,7 +199,7 @@ func (c *Client) GetTransactionReceipt(ctx context.Context, txHash common.Hash) 
 		return nil, err
 	}
 
-	c.logger.Info("successfully fetched transaction receipt",
+	util.Info("successfully fetched transaction receipt",
 		"method", "eth_getTransactionReceipt",
 		"tx_hash", txHash.Hex(),
 		"block_number", receipt.BlockNumber.Uint64(),
@@ -228,13 +219,13 @@ func (c *Client) ChainID(ctx context.Context) (*big.Int, error) {
 
 	chainID, err := c.ethClient.ChainID(reqCtx)
 	if err != nil {
-		c.logger.Error("failed to fetch chain id",
+		util.Error("failed to fetch chain id",
 			"error", err.Error(),
 		)
 		return nil, err
 	}
 
-	c.logger.Info("fetched chain id",
+	util.Info("fetched chain id",
 		"chain_id", chainID.String(),
 	)
 

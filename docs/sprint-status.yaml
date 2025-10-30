@@ -43,7 +43,7 @@ development_status:
   1-5-chain-reorganization-detection-and-recovery: backlog
   1-6-database-migration-system: backlog
   1-7-prometheus-metrics-for-indexer: done
-  1-8-structured-logging-for-debugging: in-progress
+  1-8-structured-logging-for-debugging: review
   1-9-integration-tests-for-indexer-pipeline: backlog
   epic-1-retrospective: optional
 

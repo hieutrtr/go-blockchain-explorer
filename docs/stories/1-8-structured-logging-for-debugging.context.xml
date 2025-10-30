@@ -1,0 +1,269 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>8</storyId>
+    <title>Structured Logging for Debugging</title>
+    <status>drafted</status>
+    <generatedAt>2025-10-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-8-structured-logging-for-debugging.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain explorer developer/operator</asA>
+    <iWant>comprehensive structured JSON logging for all significant system events</iWant>
+    <soThat>I can debug issues, audit system behavior, and monitor application health in production</soThat>
+    <tasks>
+      <task id="T1" title="Design logger architecture">
+        <subtask id="T1.1">Define logger initialization signature and configuration handling</subtask>
+        <subtask id="T1.2">Plan error context capture (stack traces, file/line info)</subtask>
+        <subtask id="T1.3">Define logging conventions (message format, attribute naming)</subtask>
+        <subtask id="T1.4">Plan integration points with RPC, database, backfill, live-tail, reorg components</subtask>
+      </task>
+      <task id="T2" title="Implement core logger">
+        <subtask id="T2.1">Create internal/util/logger.go file</subtask>
+        <subtask id="T2.2">Implement NewLogger() function with level configuration from LOG_LEVEL env var</subtask>
+        <subtask id="T2.3">Implement JSON output handler using slog.JSONHandler</subtask>
+        <subtask id="T2.4">Implement Info(), Warn(), Error(), Debug() methods</subtask>
+        <subtask id="T2.5">Ensure logger is thread-safe for concurrent usage</subtask>
+        <subtask id="T2.6">Test logger outputs valid JSON with all required fields</subtask>
+      </task>
+      <task id="T3" title="Integrate logging with core components">
+        <subtask id="T3.1">Update RPC Client to log RPC calls with parameters and results</subtask>
+        <subtask id="T3.2">Update RPC Client to log errors with error type and retry info</subtask>
+        <subtask id="T3.3">Update Database operations to log queries and timing</subtask>
+        <subtask id="T3.4">Update Backfill Coordinator to log batch progress and metrics</subtask>
+        <subtask id="T3.5">Update Live-Tail Coordinator to log block reception and lag</subtask>
+        <subtask id="T3.6">Update Reorg Handler to log detection and recovery actions</subtask>
+      </task>
+      <task id="T4" title="Implement error and context logging">
+        <subtask id="T4.1">Add structured error attributes (error type, code, context)</subtask>
+        <subtask id="T4.2">Implement error message sanitization (no secrets in logs)</subtask>
+        <subtask id="T4.3">Add file/line info to error logs for debugging</subtask>
+        <subtask id="T4.4">Test error logging with various error types</subtask>
+      </task>
+      <task id="T5" title="Add logging tests and validation">
+        <subtask id="T5.1">Create internal/util/logger_test.go file</subtask>
+        <subtask id="T5.2">Test logger initialization with different log levels</subtask>
+        <subtask id="T5.3">Test JSON output format and required fields</subtask>
+        <subtask id="T5.4">Test concurrent logging from multiple goroutines</subtask>
+        <subtask id="T5.5">Test log filtering by level</subtask>
+        <subtask id="T5.6">Test performance (logging overhead measurement)</subtask>
+        <subtask id="T5.7">Achieve &gt;70% test coverage for logger module</subtask>
+      </task>
+      <task id="T6" title="Document logging patterns and examples">
+        <subtask id="T6.1">Document logger initialization and configuration</subtask>
+        <subtask id="T6.2">Add examples for Info, Warn, Error, Debug logging patterns</subtask>
+        <subtask id="T6.3">Document structured attribute naming conventions</subtask>
+        <subtask id="T6.4">Document error logging best practices</subtask>
+        <subtask id="T6.5">Add troubleshooting guide for common logging issues</subtask>
+        <subtask id="T6.6">Create usage guide showing integration with other components</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">
+      <title>Logger Initialization and Configuration</title>
+      <requirements>
+        <req>Structured logger initialized using Go stdlib log/slog package</req>
+        <req>Logger configuration loaded from environment variables (LOG_LEVEL)</req>
+        <req>Supported log levels: DEBUG, INFO, WARN, ERROR (slog standard levels)</req>
+        <req>Default log level: INFO</req>
+        <req>Output format: JSON with structured fields (timestamp, level, message, key-value pairs)</req>
+      </requirements>
+    </criterion>
+    <criterion id="AC2">
+      <title>Core Logger Functionality</title>
+      <requirements>
+        <req>internal/util/logger.go provides NewLogger() function to create logger instances</req>
+        <req>Logger provides methods: Info(), Warn(), Error(), Debug()</req>
+        <req>Each log entry includes: timestamp (ISO8601), level, message, and optional key-value attributes</req>
+        <req>No plain text logs (JSON-only format for structured parsing)</req>
+        <req>Thread-safe concurrent logging from multiple goroutines</req>
+      </requirements>
+    </criterion>
+    <criterion id="AC3">
+      <title>Logging Integration in Core Components</title>
+      <requirements>
+        <req>RPC Client logs: RPC calls, retries, errors with error type and attempt number</req>
+        <req>Database operations log: Query execution, errors, timing</req>
+        <req>Backfill Coordinator logs: Start/end, worker status, batch completion, lag metrics</req>
+        <req>Live-Tail Coordinator logs: New block reception, processing status, lag updates</req>
+        <req>Reorg Handler logs: Reorg detection, recovery actions, block reorganization</req>
+      </requirements>
+    </criterion>
+    <criterion id="AC4">
+      <title>Error and Context Logging</title>
+      <requirements>
+        <req>Error logs include stack context where applicable (function, file, line)</req>
+        <req>Structured attributes for errors: error type, error message, context data</req>
+        <req>Context propagation: request IDs or trace IDs (if applicable) included in logs</req>
+        <req>Sensitive data masking: no private keys, passwords, or internal secrets in logs</req>
+      </requirements>
+    </criterion>
+    <criterion id="AC5">
+      <title>Performance and Observability</title>
+      <requirements>
+        <req>Logger startup time &lt; 1ms</req>
+        <req>Logging overhead &lt; 1% of component execution time (typically microseconds per call)</req>
+        <req>Log level filtering applied client-side (pre-formatting) for efficiency</req>
+        <req>No buffering; logs written immediately to stdout for container/systemd capture</req>
+        <req>Logs readable by standard log aggregation tools (ELK, Datadog, CloudWatch)</req>
+      </requirements>
+    </criterion>
+    <criterion id="AC6">
+      <title>Testing and Documentation</title>
+      <requirements>
+        <req>Unit tests for logger creation with different log levels</req>
+        <req>Unit tests for log output format validation (JSON structure, required fields)</req>
+        <req>Tests verify thread-safety and concurrent logging</req>
+        <req>Documentation includes examples for each log level and common use patterns</req>
+        <req>Test coverage &gt; 70% for logger module</req>
+      </requirements>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Story 1.8: Structured Logging for Debugging</section>
+        <snippet>Logger setup using log/slog with JSON output format. Provides structured logging for RPC client, database, coordinators. Example usage shows JSON formatted output with structured key-value pairs.</snippet>
+      </doc>
+      <doc>
+        <path>docs/stories/1-7-prometheus-metrics-for-indexer.md</path>
+        <title>Story 1.7 - Prometheus Metrics (Previous Story)</title>
+        <section>Learnings and Patterns</section>
+        <snippet>Established patterns: internal/util package organization, environment variable configuration (METRICS_PORT pattern), Init() function pattern, concurrent safety testing, 81.6% test coverage target.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>internal/util/metrics.go</path>
+        <kind>module</kind>
+        <symbol>metrics package</symbol>
+        <lines>1-177</lines>
+        <reason>Existing util package - follow same patterns for logger.go. Shows Init() pattern, environment variable configuration, thread-safe operations.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/util/metrics_test.go</path>
+        <kind>test</kind>
+        <symbol>metrics test suite</symbol>
+        <lines>1-430</lines>
+        <reason>Reference for test structure - concurrent safety tests, coverage target patterns, environment variable testing.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/rpc/client.go</path>
+        <kind>service</kind>
+        <symbol>RPC Client</symbol>
+        <lines>1-200</lines>
+        <reason>Primary integration point - needs logger for RPC calls, retries, and errors. Already uses slog internally (line 36) - standardize usage.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/rpc/errors.go</path>
+        <kind>module</kind>
+        <symbol>Error classification</symbol>
+        <lines>1-154</lines>
+        <reason>Error types and classification - logger should use these categories for structured error logging.</reason>
+      </artifact>
+      <artifact>
+        <path>cmd/worker/main.go</path>
+        <kind>entry-point</kind>
+        <symbol>main function</symbol>
+        <lines>1-58</lines>
+        <reason>Application entry point - needs logger initialization similar to metrics.Init() pattern at line 17.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/db/migrations.go</path>
+        <kind>service</kind>
+        <symbol>Database migrations</symbol>
+        <lines>all</lines>
+        <reason>Database operations integration point - needs logging for query execution and errors.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/index/backfill.go</path>
+        <kind>coordinator</kind>
+        <symbol>BackfillCoordinator</symbol>
+        <lines>all</lines>
+        <reason>Backfill coordinator integration - needs logging for batch progress, worker status, and metrics.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <go>
+        <package name="log/slog" version="stdlib">Go standard library structured logging (available in Go 1.21+)</package>
+        <package name="github.com/stretchr/testify" version="v1.10.0">Testing assertions and test suite utilities</package>
+        <package name="github.com/ethereum/go-ethereum" version="v1.16.5">May contain logging interfaces for RPC</package>
+      </go>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Use Go stdlib log/slog package only - no external logging libraries (zerolog, logrus, zap)</constraint>
+    <constraint>JSON output format mandatory - no plain text logging</constraint>
+    <constraint>Logger must be thread-safe for concurrent use from multiple goroutines</constraint>
+    <constraint>Log to stdout only for container/systemd capture - no file writing</constraint>
+    <constraint>Environment variable LOG_LEVEL for configuration (DEBUG, INFO, WARN, ERROR)</constraint>
+    <constraint>Follow internal/util package pattern established by metrics.go</constraint>
+    <constraint>No buffering - immediate write to stdout for real-time monitoring</constraint>
+    <constraint>Sensitive data masking required - no secrets, keys, or passwords in logs</constraint>
+    <constraint>Performance: logger startup &lt; 1ms, logging overhead &lt; 1% execution time</constraint>
+    <constraint>Test coverage target &gt; 70% for logger module (consistent with metrics.go)</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>NewLogger</name>
+      <kind>function</kind>
+      <signature>func NewLogger(level string) *slog.Logger</signature>
+      <path>internal/util/logger.go</path>
+      <description>Creates a new structured logger instance with specified log level from environment</description>
+    </interface>
+    <interface>
+      <name>slog.Logger methods</name>
+      <kind>stdlib-interface</kind>
+      <signature>
+        logger.Info(msg string, attrs ...any)
+        logger.Warn(msg string, attrs ...any)
+        logger.Error(msg string, attrs ...any)
+        logger.Debug(msg string, attrs ...any)
+      </signature>
+      <path>Go stdlib log/slog</path>
+      <description>Standard slog methods for structured logging with key-value attributes</description>
+    </interface>
+    <interface>
+      <name>LOG_LEVEL environment variable</name>
+      <kind>configuration</kind>
+      <signature>export LOG_LEVEL=INFO</signature>
+      <path>Environment</path>
+      <description>Configuration for log level: DEBUG, INFO, WARN, ERROR (default: INFO)</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use Go standard testing package with testify assertions. Test files follow *_test.go pattern in same package.
+      Tests should cover: initialization with different log levels, JSON output format validation, concurrent logging from goroutines,
+      log level filtering, performance measurement. Target &gt;70% coverage. Follow metrics_test.go patterns for concurrent safety tests.
+    </standards>
+    <locations>
+      <location>internal/util/logger_test.go</location>
+      <location>internal/rpc/*_test.go (integration logging tests)</location>
+      <location>internal/db/*_test.go (database logging tests)</location>
+    </locations>
+    <ideas>
+      <idea ac="AC1">Test logger initialization with LOG_LEVEL env var set to each level (DEBUG, INFO, WARN, ERROR)</idea>
+      <idea ac="AC1">Test default log level (INFO) when LOG_LEVEL not set</idea>
+      <idea ac="AC2">Test that logger outputs valid JSON with timestamp, level, message, and attributes</idea>
+      <idea ac="AC2">Test Info(), Warn(), Error(), Debug() methods produce correct level in output</idea>
+      <idea ac="AC2">Test concurrent logging from multiple goroutines (thread-safety)</idea>
+      <idea ac="AC4">Test structured error logging with error type and context attributes</idea>
+      <idea ac="AC4">Test sensitive data masking (ensure no passwords/keys in output)</idea>
+      <idea ac="AC5">Test logging performance and overhead (measure microseconds per call)</idea>
+      <idea ac="AC5">Test log level filtering (DEBUG logs filtered when level=INFO)</idea>
+      <idea ac="AC6">Test coverage report shows &gt;70% coverage for logger module</idea>
+    </ideas>
+  </tests>
+</story-context>

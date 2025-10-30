@@ -3,12 +3,11 @@ package index
 import (
 	"context"
 	"fmt"
-	"log/slog"
-	"os"
 	"sync"
 	"time"
 
 	"github.com/ethereum/go-ethereum/core/types"
+	"github.com/hieutt50/go-blockchain-explorer/internal/util"
 )
 
 // RPCBlockFetcher interface for fetching blocks (allows testing with mocks)
@@ -20,7 +19,6 @@ type RPCBlockFetcher interface {
 type BackfillCoordinator struct {
 	rpcClient RPCBlockFetcher
 	config    *Config
-	logger    *slog.Logger
 
 	// Metrics
 	blocksFetched    int64
@@ -49,14 +47,9 @@ func NewBackfillCoordinator(rpcClient RPCBlockFetcher, config *Config) (*Backfil
 		return nil, fmt.Errorf("invalid config: %w", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: slog.LevelInfo,
-	}))
-
 	return &BackfillCoordinator{
 		rpcClient: rpcClient,
 		config:    config,
-		logger:    logger,
 	}, nil
 }
 
@@ -71,12 +64,12 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 	bc.startTime = time.Now()
 	totalBlocks := endHeight - startHeight + 1
 
-	bc.logger.Info("starting backfill",
-		slog.Uint64("start_height", startHeight),
-		slog.Uint64("end_height", endHeight),
-		slog.Uint64("total_blocks", totalBlocks),
-		slog.Int("workers", bc.config.Workers),
-		slog.Int("batch_size", bc.config.BatchSize),
+	util.Info("starting backfill",
+		"start_height", startHeight,
+		"end_height", endHeight,
+		"total_blocks", totalBlocks,
+		"workers", bc.config.Workers,
+		"batch_size", bc.config.BatchSize,
 	)
 
 	// Create channels for communication
@@ -111,9 +104,9 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 				collectedHeights = append(collectedHeights, result.Height)
 
 				if len(collectedBlocks) >= bc.config.BatchSize {
-					bc.logger.Debug("batch complete",
-						slog.Int("batch_size", len(collectedBlocks)),
-						slog.Int("batch_count", int(bc.batchesProcessed)+1),
+					util.Debug("batch complete",
+						"batch_size", len(collectedBlocks),
+						"batch_count", int(bc.batchesProcessed)+1,
 					)
 					bc.batchesProcessed++
 					bc.blocksInserted += int64(len(collectedBlocks))
@@ -125,8 +118,8 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 
 		// Flush remaining blocks
 		if len(collectedBlocks) > 0 {
-			bc.logger.Debug("flushing remaining blocks",
-				slog.Int("batch_size", len(collectedBlocks)),
+			util.Debug("flushing remaining blocks",
+				"batch_size", len(collectedBlocks),
 			)
 			bc.batchesProcessed++
 			bc.blocksInserted += int64(len(collectedBlocks))
@@ -139,7 +132,7 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 		for height := startHeight; height <= endHeight; height++ {
 			select {
 			case <-ctx.Done():
-				bc.logger.Info("context cancelled, stopping job distribution")
+				util.Info("context cancelled, stopping job distribution")
 				return
 			default:
 			}
@@ -148,10 +141,10 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 			select {
 			case workerErr := <-errorChan:
 				// Error received from worker - halt backfill
-				bc.logger.Error("permanent error from worker, halting backfill",
-					slog.Int("worker_id", workerErr.WorkerID),
-					slog.Uint64("height", workerErr.Height),
-					slog.String("error", workerErr.Error.Error()),
+				util.Error("permanent error from worker, halting backfill",
+					"worker_id", workerErr.WorkerID,
+					"height", workerErr.Height,
+					"error", workerErr.Error.Error(),
 				)
 				haltOnce.Do(func() {
 					haltBackfill = true
@@ -175,13 +168,13 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 	select {
 	case workerErr := <-errorChan:
 		duration := time.Since(bc.startTime)
-		bc.logger.Error("backfill failed",
-			slog.Duration("duration", duration),
-			slog.Int64("blocks_fetched", bc.blocksFetched),
-			slog.Int64("blocks_inserted", bc.blocksInserted),
-			slog.Int("worker_id", workerErr.WorkerID),
-			slog.Uint64("height", workerErr.Height),
-			slog.String("error", workerErr.Error.Error()),
+		util.Error("backfill failed",
+			"duration", duration.String(),
+			"blocks_fetched", bc.blocksFetched,
+			"blocks_inserted", bc.blocksInserted,
+			"worker_id", workerErr.WorkerID,
+			"height", workerErr.Height,
+			"error", workerErr.Error.Error(),
 		)
 		return fmt.Errorf("backfill failed at height %d (worker %d): %w",
 			workerErr.Height, workerErr.WorkerID, workerErr.Error)
@@ -192,12 +185,12 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 	duration := time.Since(bc.startTime)
 	throughputPerSec := float64(bc.blocksFetched) / duration.Seconds()
 
-	bc.logger.Info("backfill completed successfully",
-		slog.Duration("duration", duration),
-		slog.Int64("blocks_fetched", bc.blocksFetched),
-		slog.Int64("blocks_inserted", bc.blocksInserted),
-		slog.Int64("batches_processed", bc.batchesProcessed),
-		slog.Float64("throughput_blocks_per_second", throughputPerSec),
+	util.Info("backfill completed successfully",
+		"duration", duration.String(),
+		"blocks_fetched", bc.blocksFetched,
+		"blocks_inserted", bc.blocksInserted,
+		"batches_processed", bc.batchesProcessed,
+		"throughput_blocks_per_second", fmt.Sprintf("%.2f", throughputPerSec),
 	)
 
 	return nil
@@ -224,15 +217,15 @@ func (bc *BackfillCoordinator) worker(
 ) {
 	defer wg.Done()
 
-	bc.logger.Debug("worker started",
-		slog.Int("worker_id", workerID),
+	util.Debug("worker started",
+		"worker_id", workerID,
 	)
 
 	for height := range jobQueue {
 		// Check if halt flag is set
 		if *haltFlag {
-			bc.logger.Debug("worker detected halt flag, stopping",
-				slog.Int("worker_id", workerID),
+			util.Debug("worker detected halt flag, stopping",
+				"worker_id", workerID,
 			)
 			continue // consume remaining items in queue
 		}
@@ -244,10 +237,10 @@ func (bc *BackfillCoordinator) worker(
 
 		if err != nil {
 			// Permanent error - halt backfill
-			bc.logger.Error("worker encountered error",
-				slog.Int("worker_id", workerID),
-				slog.Uint64("height", height),
-				slog.String("error", err.Error()),
+			util.Error("worker encountered error",
+				"worker_id", workerID,
+				"height", height,
+				"error", err.Error(),
 			)
 
 			workerErr := &WorkerError{
@@ -279,15 +272,15 @@ func (bc *BackfillCoordinator) worker(
 		select {
 		case resultChan <- result:
 		case <-ctx.Done():
-			bc.logger.Debug("context cancelled, worker exiting",
-				slog.Int("worker_id", workerID),
+			util.Debug("context cancelled, worker exiting",
+				"worker_id", workerID,
 			)
 			return
 		}
 	}
 
-	bc.logger.Debug("worker finished",
-		slog.Int("worker_id", workerID),
+	util.Debug("worker finished",
+		"worker_id", workerID,
 	)
 }
 
