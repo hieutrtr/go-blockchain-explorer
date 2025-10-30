@@ -133,3 +133,21 @@ func NewRPCError(message string, err error) *RPCError {
 		Err:     err,
 	}
 }
+
+// errorTypeToMetricsLabel converts internal ErrorType to metrics label value
+// Maps to: network, rate_limit, invalid_param, timeout, other
+func errorTypeToMetricsLabel(errType ErrorType) string {
+	switch errType {
+	case ErrRateLimit:
+		return "rate_limit"
+	case ErrPermanent:
+		return "invalid_param"
+	case ErrTransient:
+		// For transient errors, we need to distinguish between network and timeout
+		// For now, we map all transient errors to "network" since the main causes are network-related
+		// Future improvement: pass the error itself to classify as timeout vs network
+		return "network"
+	default:
+		return "other"
+	}
+}

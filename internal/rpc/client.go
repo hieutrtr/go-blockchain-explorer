@@ -12,6 +12,7 @@ import (
 	"github.com/ethereum/go-ethereum/common"
 	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/ethereum/go-ethereum/ethclient"
+	"github.com/hieutt50/go-blockchain-explorer/internal/util"
 )
 
 // Client wraps go-ethereum's ethclient with retry logic and structured logging
@@ -82,6 +83,7 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 	)
 
 	var block *types.Block
+	var lastError error
 
 	// Create operation closure for retry logic
 	operation := func() error {
@@ -92,6 +94,7 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 		// Fetch block with transactions
 		blk, err := c.ethClient.BlockByNumber(reqCtx, big.NewInt(int64(height)))
 		if err != nil {
+			lastError = err
 			return err
 		}
 
@@ -116,6 +119,13 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 	duration := time.Since(startTime)
 
 	if err != nil {
+		// Record RPC error metrics
+		if lastError != nil {
+			errorType := classifyError(lastError)
+			metricsErrorType := errorTypeToMetricsLabel(errorType)
+			util.RecordRPCError(metricsErrorType)
+		}
+
 		c.logger.Error("failed to fetch block",
 			"method", "eth_getBlockByNumber",
 			"block_height", height,

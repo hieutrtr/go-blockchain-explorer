@@ -1,0 +1,320 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>7</storyId>
+    <title>Prometheus Metrics for Indexer</title>
+    <status>drafted</status>
+    <generatedAt>2025-10-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-7-prometheus-metrics-for-indexer.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain explorer system operator</asA>
+    <iWant>comprehensive Prometheus metrics that expose indexer performance and operational state</iWant>
+    <soThat>I can monitor system health, detect bottlenecks, and make informed scaling decisions</soThat>
+    <tasks>
+      <task id="T1" title="Design metrics architecture">
+        <subtask id="T1.1">Define metrics package structure (internal/util/metrics.go)</subtask>
+        <subtask id="T1.2">Define metrics initialization function and metric variable exports</subtask>
+        <subtask id="T1.3">Define helper functions for recording metric values (Inc, Set, Observe)</subtask>
+        <subtask id="T1.4">Plan integration points with RPC client, backfill, live-tail coordinators</subtask>
+      </task>
+      <task id="T2" title="Implement Prometheus metrics">
+        <subtask id="T2.1">Create internal/util/metrics.go file</subtask>
+        <subtask id="T2.2">Implement BlocksIndexed counter metric</subtask>
+        <subtask id="T2.3">Implement IndexLagBlocks gauge metric</subtask>
+        <subtask id="T2.4">Implement IndexLagSeconds gauge metric</subtask>
+        <subtask id="T2.5">Implement RPCErrors counter vec metric with error_type label</subtask>
+        <subtask id="T2.6">Implement BackfillDuration histogram metric</subtask>
+        <subtask id="T2.7">Create Init() function to initialize metrics</subtask>
+      </task>
+      <task id="T3" title="Implement metrics HTTP endpoint">
+        <subtask id="T3.1">Import prometheus/promhttp handler</subtask>
+        <subtask id="T3.2">Create HTTP handler registration for /metrics</subtask>
+        <subtask id="T3.3">Implement metrics server startup in cmd/worker/main.go</subtask>
+        <subtask id="T3.4">Implement graceful shutdown of metrics server on SIGTERM/SIGINT</subtask>
+        <subtask id="T3.5">Add configuration for METRICS_PORT and METRICS_ENDPOINT</subtask>
+        <subtask id="T3.6">Test endpoint returns valid Prometheus text format</subtask>
+      </task>
+      <task id="T4" title="Integrate metrics with core components">
+        <subtask id="T4.1">Update RPC Client to increment RPCErrors on errors</subtask>
+        <subtask id="T4.2">Update RPC Client to log error classification</subtask>
+        <subtask id="T4.3">Update Backfill Coordinator to record BackfillDuration</subtask>
+        <subtask id="T4.4">Update Backfill Coordinator to increment BlocksIndexed</subtask>
+        <subtask id="T4.5">Update Live-Tail Coordinator to update IndexLagBlocks/IndexLagSeconds</subtask>
+        <subtask id="T4.6">Verify metrics recorded only on successful operations</subtask>
+      </task>
+      <task id="T5" title="Add metrics tests and validation">
+        <subtask id="T5.1">Create internal/util/metrics_test.go file</subtask>
+        <subtask id="T5.2">Test metrics package initialization and registration</subtask>
+        <subtask id="T5.3">Test metrics endpoint responds with valid Prometheus format</subtask>
+        <subtask id="T5.4">Test metrics values update correctly</subtask>
+        <subtask id="T5.5">Test metrics with labels (RPCErrors with different error types)</subtask>
+        <subtask id="T5.6">Test metrics endpoint includes all registered metrics</subtask>
+        <subtask id="T5.7">Achieve &gt;70% test coverage</subtask>
+      </task>
+      <task id="T6" title="Document and verify metrics integration">
+        <subtask id="T6.1">Document all metrics in comments</subtask>
+        <subtask id="T6.2">Document configuration variables</subtask>
+        <subtask id="T6.3">Add usage examples in Dev Notes</subtask>
+        <subtask id="T6.4">Verify metrics recorded during backfill and live-tail</subtask>
+        <subtask id="T6.5">Document Prometheus scrape configuration</subtask>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1">
+      <title>Metrics Collection Infrastructure</title>
+      <requirements>
+        <req>Prometheus metrics package initialized and exported at startup</req>
+        <req>Metrics registered with prometheus client_golang library</req>
+        <req>Metrics persisted in memory during runtime (no external dependencies)</req>
+        <req>Metrics reset/cleared on application restart</req>
+      </requirements>
+    </criterion>
+    <criterion id="AC2">
+      <title>Core Indexer Metrics</title>
+      <metrics>
+        <metric name="explorer_blocks_indexed_total" type="counter">Incremented for each block successfully indexed</metric>
+        <metric name="explorer_index_lag_blocks" type="gauge">Number of blocks behind network head</metric>
+        <metric name="explorer_index_lag_seconds" type="gauge">Time lag in seconds from network head</metric>
+        <metric name="explorer_rpc_errors_total" type="counter_vec" labels="error_type">Errors by error type (network, rate_limit, invalid_param, timeout, other)</metric>
+        <metric name="explorer_backfill_duration_seconds" type="histogram" buckets="0.1, 0.5, 1.0, 2.0, 5.0, 10.0">Time to backfill a batch of blocks</metric>
+      </metrics>
+    </criterion>
+    <criterion id="AC3">
+      <title>Metrics Endpoint</title>
+      <requirements>
+        <req>HTTP endpoint /metrics exposes metrics in Prometheus text format</req>
+        <req>Endpoint responds with status 200 and Content-Type text/plain; version=0.0.4</req>
+        <req>Metrics can be scraped by Prometheus without authentication</req>
+        <req>Endpoint returns all metrics registered in the process</req>
+      </requirements>
+    </criterion>
+    <criterion id="AC4">
+      <title>Metrics Usage in Core Components</title>
+      <requirements>
+        <req>RPC Client increments explorer_rpc_errors_total on errors with error_type label</req>
+        <req>Backfill Coordinator records explorer_backfill_duration_seconds after each batch insert</req>
+        <req>Live-Tail Coordinator updates explorer_index_lag_blocks and explorer_index_lag_seconds after each block</req>
+        <req>Backfill Coordinator increments explorer_blocks_indexed_total after successful insert</req>
+      </requirements>
+    </criterion>
+    <criterion id="AC5">
+      <title>Configuration and Observability</title>
+      <requirements>
+        <req>Metrics port configurable via METRICS_PORT environment variable (default: 9090)</req>
+        <req>Metrics endpoint configurable via METRICS_ENDPOINT environment variable (default: /metrics)</req>
+        <req>Metrics package exposes functions for recording metric values</req>
+        <req>Metrics package provides initialization function called from main()</req>
+      </requirements>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Epic 1 Tech Spec - Story 1.7 Section</title>
+        <section>Story 1.7: Prometheus Metrics for Indexer</section>
+        <snippet>Metrics Definitions and Usage: BlocksIndexed counter, IndexLagBlocks/IndexLagSeconds gauges, RPCErrors counter vec with error_type label, BackfillDuration histogram. Usage patterns show metrics.BlocksIndexed.Inc(), metrics.IndexLagBlocks.Set(float64(networkHead - dbHead)), metrics.RPCErrors.WithLabelValues("network").Inc(). Metrics endpoint via prometheus/promhttp package.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Tech Spec - Success Validation</title>
+        <section>Success Validation</section>
+        <snippet>Validate: Prometheus metrics exposed at /metrics, metrics accurately reflect system state. System runs 24+ hours without issues.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Tech Spec - Configuration Summary</title>
+        <section>Configuration Summary (Epic 1)</section>
+        <snippet>Logging level configurable for metrics-related events. Other indexer components (RPC, Database, Indexer) configured via environment variables following consistent pattern.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture - Observability</title>
+        <section>Observability (if present)</section>
+        <snippet>System observability through structured logging (JSON output) and Prometheus metrics. Metrics expose performance indicators and error counts for system monitoring.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>internal/rpc/client.go</path>
+        <kind>service</kind>
+        <symbol>Client</symbol>
+        <lines>18-22</lines>
+        <reason>RPC Client struct uses logger (slog.Logger). Similar pattern should be used in metrics.go for logger dependency. Error handling in GetBlockByNumber should integrate with metrics to track RPC errors by type.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/rpc/errors.go</path>
+        <kind>utility</kind>
+        <symbol>classifyError, ErrorType</symbol>
+        <lines>12-109</lines>
+        <reason>Error classification function identifies error types: Transient, Permanent, RateLimit. These error types should map to explorer_rpc_errors_total label values (network, rate_limit, invalid_param, timeout, other). Use error classification to determine which label to record.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/rpc/client.go</path>
+        <kind>service</kind>
+        <symbol>GetBlockByNumber</symbol>
+        <lines>71-137</lines>
+        <reason>RPC method implementation with retry logic and structured logging. Integration point: after error classification in retry logic, should increment explorer_rpc_errors_total with appropriate error_type label. On success, metrics should be recorded by calling component (Backfill/LiveTail).</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <go>
+        <package name="github.com/prometheus/client_golang" version="v1.19+" scope="direct">
+          <description>Prometheus Go client library for metrics collection</description>
+          <usage>Counter, Gauge, Histogram, CounterVec types for defining metrics</usage>
+        </package>
+        <package name="github.com/prometheus/client_golang/prometheus/promhttp" version="v1.19+" scope="direct">
+          <description>HTTP handler for Prometheus metrics endpoint</description>
+          <usage>promhttp.Handler() to serve /metrics endpoint in HTTP server</usage>
+        </package>
+        <package name="github.com/prometheus/client_golang/prometheus" version="v1.19+" scope="direct">
+          <description>Prometheus metrics types and utilities</description>
+          <usage>CounterOpts, GaugeOpts, HistogramOpts for metric configuration</usage>
+        </package>
+        <package name="github.com/prometheus/client_golang/prometheus/promauto" version="v1.19+" scope="direct">
+          <description>Automatic metric registration (auto-registers with default registry)</description>
+          <usage>promauto.NewCounter, promauto.NewGauge, promauto.NewHistogram for creating metrics</usage>
+        </package>
+        <package name="net/http" version="stdlib" scope="direct">
+          <description>Go standard library HTTP server</description>
+          <usage>http.Handle("/metrics", handler) to register metrics endpoint</usage>
+        </package>
+        <package name="log/slog" version="stdlib" scope="direct">
+          <description>Go standard library structured logging (available in Go 1.21+)</description>
+          <usage>JSON logging for metrics initialization and errors</usage>
+        </package>
+        <package name="github.com/ethereum/go-ethereum" version="v1.16.5" scope="existing">
+          <description>Ethereum RPC types and go-ethereum client</description>
+          <usage>Already used by RPC client; no changes needed</usage>
+        </package>
+        <package name="github.com/stretchr/testify" version="v1.10.0" scope="existing">
+          <description>Testing assertion library</description>
+          <usage>assert, require for unit tests in metrics_test.go</usage>
+        </package>
+      </go>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint category="architecture">
+      <name>Package Isolation</name>
+      <description>Metrics should be isolated in internal/util/metrics.go package. Other packages (RPC, Backfill, LiveTail) should call metrics functions, not directly access prometheus metrics.</description>
+      <rationale>Prevents tight coupling to prometheus library; allows future metrics backend swaps</rationale>
+    </constraint>
+    <constraint category="pattern">
+      <name>Configuration from Environment</name>
+      <description>METRICS_PORT (default 9090) and METRICS_ENDPOINT (default /metrics) should be loaded from environment variables in metrics initialization.</description>
+      <rationale>Consistency with existing pattern (BACKFILL_*, DB_*, RPC_* variables); enables runtime configuration without code changes</rationale>
+    </constraint>
+    <constraint category="pattern">
+      <name>Single Init Function</name>
+      <description>Metrics package should provide Init() function called once from main() at startup. All metrics should be registered automatically via promauto.</description>
+      <rationale>Ensures metrics initialized before any recording; follows Go best practices for one-time setup</rationale>
+    </constraint>
+    <constraint category="performance">
+      <name>Minimal Overhead</name>
+      <description>Metrics recording (Inc, Set, Observe) must not block indexing operations. All operations must be atomic/lock-free.</description>
+      <rationale>Prometheus library provides thread-safe atomic operations; no explicit locking needed</rationale>
+    </constraint>
+    <constraint category="code-quality">
+      <name>Error Type Labels</name>
+      <description>explorer_rpc_errors_total label values must be limited to known set: network, rate_limit, invalid_param, timeout, other. No unbounded label values.</description>
+      <rationale>Prevents high-cardinality labels that could cause Prometheus memory issues</rationale>
+    </constraint>
+    <constraint category="testing">
+      <name>Test Coverage Target</name>
+      <description>Metrics package must achieve &gt;70% test coverage. All metrics registration, recording, and endpoint functionality must be tested.</description>
+      <rationale>Consistency with other Epic 1 packages; ensures observable metrics function correctly</rationale>
+    </constraint>
+    <constraint category="logging">
+      <name>Structured Logging</name>
+      <description>Metrics initialization and errors should use log/slog JSON handler (consistent with RPC client pattern).</description>
+      <rationale>Provides observable metrics-related events in consistent JSON format</rationale>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>Metrics Recording Functions</name>
+      <kind>Go Package Functions</kind>
+      <signature>
+        func Init() error                                  // Initialize metrics at startup
+        func RecordBlockIndexed()                          // Increment BlocksIndexed counter
+        func SetIndexLagBlocks(lag float64)                // Set index lag in blocks
+        func SetIndexLagSeconds(lag float64)               // Set index lag in seconds
+        func RecordRPCError(errorType string)              // Increment RPCErrors with label
+        func RecordBackfillDuration(seconds float64)       // Record backfill duration histogram
+      </signature>
+      <path>internal/util/metrics.go</path>
+      <notes>All functions should be simple, fast, thread-safe wrappers around prometheus metrics</notes>
+    </interface>
+    <interface>
+      <name>HTTP Metrics Endpoint</name>
+      <kind>HTTP Endpoint</kind>
+      <signature>GET /metrics</signature>
+      <format>Prometheus text format (text/plain; version=0.0.4)</format>
+      <response>200 OK - Prometheus metric lines (# HELP, # TYPE, metric_name{labels} value)</response>
+      <notes>Served by prometheus/promhttp.Handler() on configurable port (default 9090)</notes>
+    </interface>
+    <interface>
+      <name>Integration Point: RPC Client Error Recording</name>
+      <kind>RPC Client Method Integration</kind>
+      <signature>
+        // In internal/rpc/client.go GetBlockByNumber method:
+        // After classifying error, before retry decision:
+        metrics.RecordRPCError(errorTypeToString(classifyError(err)))
+      </signature>
+      <path>internal/rpc/client.go:71-137</path>
+      <notes>Called on each RPC error. Error type classification available from errors.go</notes>
+    </interface>
+    <interface>
+      <name>Integration Point: Backfill Completion</name>
+      <kind>Backfill Coordinator Method Integration</kind>
+      <signature>
+        // After successful batch insert:
+        metrics.RecordBlockIndexed()                          // Call for each block
+        metrics.RecordBackfillDuration(durationSeconds)       // After batch insert
+      </signature>
+      <path>internal/index/backfill.go (future)</path>
+      <notes>Called after InsertBlocks succeeds; timing measured per batch</notes>
+    </interface>
+    <interface>
+      <name>Integration Point: Live-Tail Lag Tracking</name>
+      <kind>Live-Tail Coordinator Method Integration</kind>
+      <signature>
+        // After processing each block:
+        metrics.SetIndexLagBlocks(float64(networkHeadHeight - dbHeadHeight))
+        metrics.SetIndexLagSeconds(float64(time.Since(lastBlockTime).Seconds()))
+      </signature>
+      <path>internal/index/livetail.go (future)</path>
+      <notes>Called after each successful block insert; updates gauges (replace previous value)</notes>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      <standard>Unit tests use testify/assert for assertions. Metrics tests mock Prometheus registry to verify metric names, types, and value updates. Integration tests verify HTTP endpoint returns valid Prometheus format. All tests avoid external dependencies (self-contained). Coverage target: &gt;70% for metrics package. Test file location: internal/util/metrics_test.go following Go convention.</standard>
+    </standards>
+    <locations>
+      <location path="internal/util/metrics_test.go" type="unit">Unit tests for metrics package initialization, recording, and HTTP endpoint</location>
+      <location path="internal/rpc/client_test.go" type="integration">Integration tests verify RPC error metrics recorded (future enhancement to existing tests)</location>
+      <location path="cmd/worker/main.go" type="manual">Manual testing: curl http://localhost:9090/metrics to verify endpoint format</location>
+    </locations>
+    <ideas>
+      <idea acId="AC1">Test Init() function registers all 5 metrics (BlocksIndexed, IndexLagBlocks, IndexLagSeconds, RPCErrors, BackfillDuration) with prometheus library</idea>
+      <idea acId="AC2">Test each metric type: Counter.Inc() increments value, Gauge.Set() replaces value, Histogram.Observe() records duration in correct bucket, CounterVec with labels groups by error_type</idea>
+      <idea acId="AC3">Test HTTP endpoint /metrics responds with 200 OK and valid Prometheus text format containing all metric definitions</idea>
+      <idea acId="AC4">Test error classification maps to error_type labels: network (connection errors), rate_limit (429), invalid_param (bad request), timeout (context deadline), other (unknown)</idea>
+      <idea acId="AC5">Test configuration: METRICS_PORT env var changes port, METRICS_ENDPOINT env var changes path, defaults apply if not set</idea>
+      <idea acId="AC1,AC2">Test concurrent metric recording: spawn multiple goroutines incrementing same counter, verify final value correct (thread-safety)</idea>
+      <idea acId="AC3">Test metric scrape format: verify output includes HELP and TYPE lines for each metric as per Prometheus spec</idea>
+    </ideas>
+  </tests>
+</story-context>
