@@ -36,13 +36,13 @@ story_location: "{project-root}/docs/stories"
 
 development_status:
   epic-1: backlog
-  1-1-ethereum-rpc-client-with-retry-logic: review
-  1-2-postgresql-schema-and-migrations: backlog
-  1-3-parallel-backfill-worker-pool: backlog
+  1-1-ethereum-rpc-client-with-retry-logic: done
+  1-2-postgresql-schema-and-migrations: review
+  1-3-parallel-backfill-worker-pool: drafted
   1-4-live-tail-mechanism-for-new-blocks: backlog
   1-5-chain-reorganization-detection-and-recovery: backlog
   1-6-database-migration-system: backlog
-  1-7-prometheus-metrics-for-indexer: backlog
+  1-7-prometheus-metrics-for-indexer: drafted
   1-8-structured-logging-for-debugging: backlog
   1-9-integration-tests-for-indexer-pipeline: backlog
   epic-1-retrospective: optional

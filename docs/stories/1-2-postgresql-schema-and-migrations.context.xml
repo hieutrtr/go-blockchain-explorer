@@ -1,0 +1,611 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<story-context generated="2025-10-30" project="go-blockchain-explorer">
+
+  <!-- Story Identity -->
+  <story>
+    <epic>1</epic>
+    <story-id>2</story-id>
+    <story-key>1-2-postgresql-schema-and-migrations</story-key>
+    <title>PostgreSQL Schema and Migrations</title>
+    <status>ready-for-dev</status>
+  </story>
+
+  <!-- User Story -->
+  <user-story>
+    <as-a>blockchain indexer system</as-a>
+    <i-want>a PostgreSQL database schema optimized for blockchain data access patterns with an automated migration system</i-want>
+    <so-that>I can efficiently store and query blocks, transactions, and logs with referential integrity and support for chain reorganizations</so-that>
+  </user-story>
+
+  <!-- Acceptance Criteria -->
+  <acceptance-criteria>
+    <criterion id="AC1" priority="critical">
+      <title>Core Schema Design</title>
+      <description>
+        - blocks table stores height (PK), hash, parent_hash, miner, gas_used, tx_count, timestamp, orphaned flag
+        - transactions table stores hash (PK), block_height (FK), from_addr, to_addr, value_wei, fee_wei, gas_used, success
+        - logs table stores tx_hash (FK), log_index, address, topic0-3, data
+        - All Ethereum data elements from go-ethereum types.Block, types.Transaction, types.Receipt are captured
+        - Foreign key constraints ensure referential integrity between tables
+      </description>
+    </criterion>
+    <criterion id="AC2" priority="high">
+      <title>Performance Indexes</title>
+      <description>
+        - Composite index on transactions (block_height, from_addr) for address history queries
+        - Composite index on transactions (block_height, to_addr) for recipient lookups
+        - Index on blocks (orphaned, height) for reorg detection queries
+        - Index on logs (address, topic0) for event filtering
+        - Address transaction lookups complete in &lt;150ms for typical query patterns
+      </description>
+    </criterion>
+    <criterion id="AC3" priority="critical">
+      <title>Migration System</title>
+      <description>
+        - Automated migration execution via golang-migrate library
+        - Migrations stored in migrations/ directory with versioned up/down SQL files
+        - Schema version tracked in database (schema_migrations table)
+        - Migration runs automatically on application startup
+        - Supports both forward (up) and rollback (down) migrations
+      </description>
+    </criterion>
+    <criterion id="AC4" priority="high">
+      <title>Data Type Optimization</title>
+      <description>
+        - Uses PostgreSQL native types: bytea for hashes/addresses, numeric for wei values
+        - Includes created_at/updated_at timestamps for debugging and audit trails
+        - Orphaned flag (boolean) enables soft-delete pattern for chain reorganizations
+        - Schema designed for 5K-50K blocks initially, scalable to millions
+      </description>
+    </criterion>
+    <criterion id="AC5" priority="critical">
+      <title>Database Configuration</title>
+      <description>
+        - Database connection configured via environment variables (DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD)
+        - Connection pool configuration (DB_MAX_CONNS) for performance tuning
+        - pgx driver with connection pooling (pgxpool) for high-performance database access
+        - Database URL construction and connection validation on startup
+      </description>
+    </criterion>
+  </acceptance-criteria>
+
+  <!-- Tasks -->
+  <tasks>
+    <task id="1" status="pending">
+      <title>Design database schema</title>
+      <acceptance-criteria>AC1, AC4</acceptance-criteria>
+      <subtasks>
+        <subtask id="1.1">Design blocks table schema with all fields from types.Block</subtask>
+        <subtask id="1.2">Design transactions table schema with all fields from types.Transaction</subtask>
+        <subtask id="1.3">Design logs table schema with all fields from types.Log</subtask>
+        <subtask id="1.4">Define foreign key relationships (transactions.block_height → blocks.height, logs.tx_hash → transactions.hash)</subtask>
+        <subtask id="1.5">Add metadata fields (created_at, updated_at) to all tables</subtask>
+        <subtask id="1.6">Document data type mappings (go-ethereum types → PostgreSQL types)</subtask>
+      </subtasks>
+    </task>
+    <task id="2" status="pending">
+      <title>Create initial migration files</title>
+      <acceptance-criteria>AC1, AC2, AC3</acceptance-criteria>
+      <subtasks>
+        <subtask id="2.1">Create migrations/000001_initial_schema.up.sql with CREATE TABLE statements</subtask>
+        <subtask id="2.2">Create migrations/000001_initial_schema.down.sql with DROP TABLE statements</subtask>
+        <subtask id="2.3">Create migrations/000002_add_indexes.up.sql with CREATE INDEX statements for performance</subtask>
+        <subtask id="2.4">Create migrations/000002_add_indexes.down.sql with DROP INDEX statements</subtask>
+        <subtask id="2.5">Verify SQL syntax and PostgreSQL 16 compatibility</subtask>
+      </subtasks>
+    </task>
+    <task id="3" status="pending">
+      <title>Implement migration execution logic</title>
+      <acceptance-criteria>AC3, AC5</acceptance-criteria>
+      <subtasks>
+        <subtask id="3.1">Add golang-migrate/migrate/v4 to go.mod</subtask>
+        <subtask id="3.2">Create internal/db/migrations.go with runMigrations() function</subtask>
+        <subtask id="3.3">Implement migration runner using golang-migrate "file://migrations" source</subtask>
+        <subtask id="3.4">Add migration execution to application startup (before any database operations)</subtask>
+        <subtask id="3.5">Handle migration errors (already applied, failed migrations, version conflicts)</subtask>
+      </subtasks>
+    </task>
+    <task id="4" status="pending">
+      <title>Implement database configuration and connection</title>
+      <acceptance-criteria>AC5</acceptance-criteria>
+      <subtasks>
+        <subtask id="4.1">Create internal/db/config.go with database configuration struct</subtask>
+        <subtask id="4.2">Implement configuration loading from environment variables (DB_HOST, DB_PORT, etc.)</subtask>
+        <subtask id="4.3">Create internal/db/connection.go with pgx connection pool initialization</subtask>
+        <subtask id="4.4">Implement connection validation and health check on startup</subtask>
+        <subtask id="4.5">Configure connection pool settings (max connections, idle timeout, connection lifetime)</subtask>
+      </subtasks>
+    </task>
+    <task id="5" status="pending">
+      <title>Write schema documentation and tests</title>
+      <acceptance-criteria>AC1, AC2, AC3, AC4, AC5</acceptance-criteria>
+      <subtasks>
+        <subtask id="5.1">Document schema design rationale and data type choices</subtask>
+        <subtask id="5.2">Create integration test for migration execution (up and down)</subtask>
+        <subtask id="5.3">Create test for database connection and configuration</subtask>
+        <subtask id="5.4">Verify foreign key constraints work correctly</subtask>
+        <subtask id="5.5">Test index creation and verify query performance expectations</subtask>
+      </subtasks>
+    </task>
+  </tasks>
+
+  <!-- Artifacts -->
+  <artifacts>
+
+    <!-- Documentation Artifacts -->
+    <docs>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Tech Spec: Epic 1 - Core Indexing &amp; Data Pipeline</title>
+        <section>Story 1.2: PostgreSQL Schema and Migrations</section>
+        <snippet>Complete database schema design with CREATE TABLE statements for blocks, transactions, and logs tables. Includes composite indexes for performance and migration execution patterns using golang-migrate. Lines 328-372 contain detailed schema DDL and configuration guidance.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture Document</title>
+        <section>3. Data Architecture / 3.1 Database Schema</section>
+        <snippet>Comprehensive database schema design principles, table structures with all columns and data types, indexing strategy rationale, and data flow patterns. Lines 275-428 contain complete schema definitions and migration strategy.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture Document</title>
+        <section>1. Technology Stack / 1.1 Technology Decision Table</section>
+        <snippet>Technology choices: PostgreSQL 16 (production stability, supported until Nov 2029), pgx v5 driver (trust score 9.3/10, connection pooling with pgxpool, COPY protocol support), golang-migrate for schema versioning. Lines 34-50.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>NFR002: Data Persistence</section>
+        <snippet>PostgreSQL 16 with optimized indexes for efficient data storage and retrieval. Foreign key constraints, ACID compliance, connection pooling. Supports 5K-50K blocks initially, scalable to millions.</snippet>
+      </doc>
+    </docs>
+
+    <!-- Code Artifacts -->
+    <code>
+      <artifact>
+        <path>internal/rpc/client.go</path>
+        <kind>service</kind>
+        <symbol>Client</symbol>
+        <lines>25-232</lines>
+        <reason>RPC client provides go-ethereum types.Block, types.Transaction, types.Receipt that must be stored in database. GetBlockByNumber returns *types.Block with all fields that need to be mapped to schema.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/rpc/config.go</path>
+        <kind>config</kind>
+        <symbol>Config, NewConfig</symbol>
+        <lines>29-54</lines>
+        <reason>Configuration pattern to follow: environment variable loading, validation, struct-based config. Apply same pattern for DB_HOST, DB_PORT, DB_NAME, DB_USER, DB_PASSWORD, DB_MAX_CONNS.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/rpc/errors.go</path>
+        <kind>error-handling</kind>
+        <symbol>classifyError, ErrorType</symbol>
+        <lines>26-109</lines>
+        <reason>Error classification pattern (transient vs permanent) can be applied to database errors: connection failures (transient), constraint violations (permanent), deadlocks (transient).</reason>
+      </artifact>
+      <artifact>
+        <path>internal/rpc/client_test.go</path>
+        <kind>test</kind>
+        <symbol>TestNewConfig, TestClient_*_Integration</symbol>
+        <lines>17-171</lines>
+        <reason>Testing patterns: config validation tests, integration tests with real external service, skip pattern for integration tests (testing.Short()), testcontainers pattern for database tests.</reason>
+      </artifact>
+      <artifact>
+        <path>go.mod</path>
+        <kind>dependencies</kind>
+        <symbol>go.mod dependencies</symbol>
+        <lines>1-34</lines>
+        <reason>Current dependencies: go-ethereum v1.16.5, testify v1.10.0. Need to add: pgx v5, golang-migrate v4. Go version 1.24.0 confirmed.</reason>
+      </artifact>
+    </code>
+
+    <!-- Dependencies -->
+    <dependencies>
+      <go>
+        <package name="github.com/ethereum/go-ethereum" version="v1.16.5" usage="types.Block, types.Transaction, types.Receipt, types.Log for schema design"/>
+        <package name="github.com/stretchr/testify" version="v1.10.0" usage="Test assertions and require for database tests"/>
+        <package name="github.com/jackc/pgx/v5" version="latest" required="true" usage="High-performance PostgreSQL driver (trust score 9.3/10), pgxpool for connection pooling"/>
+        <package name="github.com/golang-migrate/migrate/v4" version="latest" required="true" usage="Database migration management with version tracking"/>
+      </go>
+      <external>
+        <service name="PostgreSQL" version="16" usage="Primary database for blocks, transactions, logs storage"/>
+      </external>
+    </dependencies>
+
+  </artifacts>
+
+  <!-- Interfaces & Contracts -->
+  <interfaces>
+    <interface>
+      <name>types.Block (go-ethereum)</name>
+      <kind>data structure</kind>
+      <signature>
+type Block struct {
+    Header() *Header  // Contains: Number, Hash, ParentHash, Miner, GasUsed, GasLimit, Time
+    Transactions() Transactions
+    // Map to: blocks table (height, hash, parent_hash, miner, gas_used, gas_limit, timestamp, tx_count)
+}
+      </signature>
+      <path>github.com/ethereum/go-ethereum/core/types/block.go</path>
+    </interface>
+    <interface>
+      <name>types.Transaction (go-ethereum)</name>
+      <kind>data structure</kind>
+      <signature>
+type Transaction struct {
+    Hash() common.Hash
+    To() *common.Address     // nil for contract creation
+    Value() *big.Int         // wei value
+    Gas() uint64
+    GasPrice() *big.Int
+    Nonce() uint64
+    // Map to: transactions table (hash, to_addr, value_wei, gas_used, gas_price, nonce)
+}
+      </signature>
+      <path>github.com/ethereum/go-ethereum/core/types/transaction.go</path>
+    </interface>
+    <interface>
+      <name>types.Receipt (go-ethereum)</name>
+      <kind>data structure</kind>
+      <signature>
+type Receipt struct {
+    Status uint64           // 1 = success, 0 = failure
+    GasUsed uint64
+    Logs []*Log
+    // Map to: transactions.success (boolean), transactions.gas_used, logs table
+}
+      </signature>
+      <path>github.com/ethereum/go-ethereum/core/types/receipt.go</path>
+    </interface>
+    <interface>
+      <name>types.Log (go-ethereum)</name>
+      <kind>data structure</kind>
+      <signature>
+type Log struct {
+    Address common.Address   // Contract address
+    Topics []common.Hash    // Up to 4 topics (topic0, topic1, topic2, topic3)
+    Data []byte             // Log data
+    Index uint              // Log index in receipt
+    TxHash common.Hash
+    // Map to: logs table (address, topic0-3, data, log_index, tx_hash)
+}
+      </signature>
+      <path>github.com/ethereum/go-ethereum/core/types/log.go</path>
+    </interface>
+    <interface>
+      <name>Database Configuration Interface</name>
+      <kind>configuration pattern</kind>
+      <signature>
+// Follow pattern from internal/rpc/config.go
+type DBConfig struct {
+    Host        string        // DB_HOST env var
+    Port        int           // DB_PORT env var
+    Name        string        // DB_NAME env var
+    User        string        // DB_USER env var
+    Password    string        // DB_PASSWORD env var
+    MaxConns    int           // DB_MAX_CONNS env var
+}
+
+func NewDBConfig() (*DBConfig, error) {
+    // Load from environment, validate, return config or error
+}
+      </signature>
+      <path>internal/db/config.go (to be created)</path>
+    </interface>
+  </interfaces>
+
+  <!-- Development Constraints -->
+  <constraints>
+    <constraint type="architecture">
+      <rule>Package Isolation: internal/db/ must have no dependencies on internal/rpc/ or internal/index/. Only depends on stdlib and pgx.</rule>
+      <source>Story 1.1 architectural pattern - internal/rpc/ has no internal dependencies</source>
+    </constraint>
+    <constraint type="testing">
+      <rule>Test Coverage Target: &gt;70% for all database package code (config, connection, migrations). Story 1.1 achieved 74.8% - maintain this standard.</rule>
+      <source>Story 1.1 established pattern, PRD NFR005</source>
+    </constraint>
+    <constraint type="logging">
+      <rule>Use log/slog with JSON handler for all database operations. Never log full connection strings (mask password).</rule>
+      <source>Story 1.1 pattern (client.go:35-37), security best practice</source>
+    </constraint>
+    <constraint type="error-handling">
+      <rule>All database operations accept context.Context for cancellation. Consider classifying database errors (transient: connection failures, deadlocks; permanent: constraint violations, syntax errors).</rule>
+      <source>Story 1.1 pattern (retry.go:29-35, errors.go:40-109)</source>
+    </constraint>
+    <constraint type="schema">
+      <rule>Foreign key constraints with ON DELETE CASCADE. Composite indexes for query patterns. bytea for hashes/addresses, numeric for wei values, bigint for block numbers/gas.</rule>
+      <source>Tech Spec Epic 1 (lines 134-201), Solution Architecture (lines 286-373)</source>
+    </constraint>
+    <constraint type="migration">
+      <rule>All schema changes via versioned migrations (up/down). Never modify existing migrations. Each migration in separate numbered file. Run migrations before any database operations.</rule>
+      <source>Solution Architecture (lines 410-428), Tech Spec Epic 1 (lines 336-360)</source>
+    </constraint>
+    <constraint type="performance">
+      <rule>Use pgxpool connection pooling. Bulk inserts for backfill (COPY protocol preferred). Connection pool size: DB_MAX_CONNS=20 default.</rule>
+      <source>Solution Architecture (lines 573, 916-944), Tech Spec Epic 1 (lines 363-370)</source>
+    </constraint>
+  </constraints>
+
+  <!-- Testing Standards -->
+  <tests>
+    <standards>
+      Testing for Story 1.2 follows patterns established in Story 1.1:
+      - Unit tests for configuration validation (NewDBConfig with valid/invalid env vars)
+      - Unit tests for connection string construction
+      - Integration tests for migration execution (up and down) using test database
+      - Integration tests for connection pooling and health checks
+      - Use testify assertions (assert, require)
+      - Integration tests skip in short mode: if testing.Short() { t.Skip() }
+      - Use Docker PostgreSQL or testcontainers-go for integration tests
+      - Clean up test databases after execution
+      - Each test runs migrations in isolated database
+      - Test coverage &gt;70% (Story 1.1 achieved 74.8%)
+      - Never skip tests like Story 1.1's GetTransactionReceipt (0% coverage) - this was flagged in code review
+    </standards>
+
+    <locations>
+      <location>internal/db/*_test.go</location>
+      <location>migrations/ (verified in integration tests)</location>
+    </locations>
+
+    <ideas>
+      <test-idea ac="AC1" priority="critical">
+        Test migration 000001_initial_schema.up.sql creates blocks, transactions, logs tables with correct columns and data types. Verify foreign key constraints exist.
+      </test-idea>
+      <test-idea ac="AC1" priority="critical">
+        Test that transactions.block_height references blocks.height with ON DELETE CASCADE. Insert block, insert transactions, delete block, verify transactions deleted.
+      </test-idea>
+      <test-idea ac="AC2" priority="high">
+        Test that composite indexes exist: pg_indexes query for idx_tx_from_addr_block, idx_tx_to_addr_block, idx_blocks_orphaned_height, idx_logs_address_topic0.
+      </test-idea>
+      <test-idea ac="AC3" priority="critical">
+        Test migration system: run up migrations, verify schema_migrations table, run down migrations, verify tables dropped.
+      </test-idea>
+      <test-idea ac="AC3" priority="critical">
+        Test migration error handling: run migrations twice (should be idempotent), test with invalid migration file, test version conflicts.
+      </test-idea>
+      <test-idea ac="AC4" priority="high">
+        Test data type mappings: insert block with bytea hash, numeric gas_used, bigint timestamp. Verify values round-trip correctly.
+      </test-idea>
+      <test-idea ac="AC5" priority="critical">
+        Test config loading: valid env vars create config, missing DB_HOST returns error, invalid DB_PORT returns error.
+      </test-idea>
+      <test-idea ac="AC5" priority="critical">
+        Test connection pool: create connection, execute health check query (SELECT 1), verify connection count, close pool.
+      </test-idea>
+      <test-idea ac="AC5" priority="high">
+        Test connection validation: connect to invalid host should timeout, connect to valid host should succeed with context deadline.
+      </test-idea>
+    </ideas>
+  </tests>
+
+  <!-- Previous Story Learnings -->
+  <previous-story-learnings>
+    <source-story>1-1-ethereum-rpc-client-with-retry-logic</source-story>
+    <status>done</status>
+
+    <established-patterns>
+      <pattern>
+        <name>Test Coverage Target: &gt;70%</name>
+        <description>Story 1.1 achieved 74.8% coverage. Maintain this standard for internal/db/ package.</description>
+      </pattern>
+      <pattern>
+        <name>Structured Logging with log/slog</name>
+        <description>Use log/slog with JSON handler for database operations (pattern from client.go:35-37). Never log full connection strings (mask passwords).</description>
+      </pattern>
+      <pattern>
+        <name>Configuration from Environment Variables</name>
+        <description>Follow RPC_URL pattern - use environment variables for DB credentials (config.go:30-32). Validate at startup, return error if missing.</description>
+      </pattern>
+      <pattern>
+        <name>Error Classification</name>
+        <description>Consider classifying database errors (transient vs permanent) similar to RPC errors (errors.go:40-109). Transient: connection failures, deadlocks. Permanent: constraint violations, syntax errors.</description>
+      </pattern>
+      <pattern>
+        <name>Input Validation at API Boundary</name>
+        <description>Validate at API boundary before database operations (pattern from client.go:72-75). Check nil pointers, validate block heights, verify data types.</description>
+      </pattern>
+      <pattern>
+        <name>Package Isolation</name>
+        <description>internal/rpc/ has no dependencies on other internal packages - maintain this for internal/db/. Only depend on stdlib and external libraries (pgx, golang-migrate).</description>
+      </pattern>
+      <pattern>
+        <name>Context Handling</name>
+        <description>All database operations should accept context.Context for cancellation (pattern from retry.go:29-35). Use context.WithTimeout for connection establishment.</description>
+      </pattern>
+      <pattern>
+        <name>Module Structure</name>
+        <description>Separate config, connection logic, and operations into distinct files (client.go, config.go, retry.go pattern). Apply to: config.go, connection.go, migrations.go.</description>
+      </pattern>
+    </established-patterns>
+
+    <available-services>
+      <service>
+        <name>RPC Client Service</name>
+        <path>internal/rpc/Client</path>
+        <description>Fetches blockchain data that will be stored in database</description>
+        <methods>
+          <method signature="GetBlockByNumber(ctx context.Context, height uint64) (*types.Block, error)" location="client.go:71-137">
+            Fetches block with all transactions and metadata. This data must be mapped to blocks and transactions tables.
+          </method>
+          <method signature="GetTransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)" location="client.go:140-211">
+            Fetches transaction receipt with success status and logs. Maps to transactions.success and logs table.
+          </method>
+          <method signature="ChainID(ctx context.Context) (*big.Int, error)" location="client.go:213-232">
+            Helper for network verification. Can be used to validate RPC connection on startup.
+          </method>
+        </methods>
+      </service>
+    </available-services>
+
+    <technical-debt>
+      <item severity="medium">
+        <description>GetTransactionReceipt has 0% test coverage in Story 1.1</description>
+        <action>Don't repeat this pattern. Ensure all database operations have comprehensive test coverage from the start.</action>
+      </item>
+      <item severity="low">
+        <description>Connection string security</description>
+        <action>Never log full connection strings (similar to RPC_URL protection in client.go:40). Mask password in logs.</action>
+      </item>
+      <item severity="info">
+        <description>Connection pooling</description>
+        <action>pgxpool should mirror ethclient's internal pooling approach. Configure max connections, idle timeout, connection lifetime.</action>
+      </item>
+    </technical-debt>
+
+    <files-created-in-previous-story>
+      <file>go.mod (Go 1.24+, go-ethereum v1.16.5, testify v1.10.0)</file>
+      <file>internal/rpc/client.go, config.go, errors.go, retry.go</file>
+      <file>internal/rpc/client_test.go, errors_test.go, retry_test.go</file>
+      <file>.gitignore (includes .env protection)</file>
+      <file>README.md (project documentation pattern)</file>
+    </files-created-in-previous-story>
+  </previous-story-learnings>
+
+  <!-- Implementation Notes -->
+  <implementation-notes>
+    <note priority="critical">
+      <title>Schema Design from go-ethereum Types</title>
+      <content>
+Map go-ethereum types to PostgreSQL schema:
+- types.Block.Header().Number → blocks.height (BIGINT PRIMARY KEY)
+- types.Block.Hash() → blocks.hash (BYTEA NOT NULL UNIQUE)
+- types.Block.ParentHash() → blocks.parent_hash (BYTEA NOT NULL)
+- types.Header.Coinbase → blocks.miner (BYTEA NOT NULL)
+- types.Header.GasUsed → blocks.gas_used (NUMERIC NOT NULL)
+- types.Header.GasLimit → blocks.gas_limit (NUMERIC NOT NULL)
+- types.Header.Time → blocks.timestamp (BIGINT NOT NULL)
+- len(types.Block.Transactions()) → blocks.tx_count (INTEGER NOT NULL)
+- Add: blocks.orphaned (BOOLEAN DEFAULT FALSE) for reorg handling
+- Add: blocks.created_at, blocks.updated_at (TIMESTAMP) for debugging
+
+Transaction mappings in tech-spec-epic-1.md lines 158-179.
+Log mappings in tech-spec-epic-1.md lines 184-201.
+      </content>
+    </note>
+    <note priority="critical">
+      <title>Migration Files Structure</title>
+      <content>
+Create four migration files:
+1. migrations/000001_initial_schema.up.sql - CREATE TABLE for blocks, transactions, logs with foreign keys
+2. migrations/000001_initial_schema.down.sql - DROP TABLE in reverse dependency order (logs, transactions, blocks)
+3. migrations/000002_add_indexes.up.sql - CREATE INDEX for all composite indexes (6 indexes total)
+4. migrations/000002_add_indexes.down.sql - DROP INDEX for all indexes
+
+Complete SQL DDL available in tech-spec-epic-1.md lines 134-201.
+Execute via golang-migrate in internal/db/migrations.go.
+      </content>
+    </note>
+    <note priority="high">
+      <title>Connection Pool Configuration</title>
+      <content>
+Use pgxpool for connection pooling:
+- Default max connections: 20 (configurable via DB_MAX_CONNS)
+- Connection lifetime: 30 minutes
+- Idle timeout: 5 minutes
+- Health check timeout: 5 seconds
+
+Connection string format: postgres://user:password@host:port/dbname?sslmode=disable
+Mask password in logs for security.
+
+Reference pattern: solution-architecture.md lines 949-977.
+      </content>
+    </note>
+    <note priority="high">
+      <title>Testing Strategy with Test Database</title>
+      <content>
+Integration tests require PostgreSQL test instance:
+- Option 1: Docker Compose with test database
+- Option 2: testcontainers-go (automatic container management)
+
+Each test should:
+1. Create isolated test database or schema
+2. Run migrations (up)
+3. Execute test operations
+4. Verify results
+5. Run migrations (down) or drop database
+6. Clean up
+
+Mark integration tests with: if testing.Short() { t.Skip() }
+Target coverage: &gt;70% (Story 1.1 achieved 74.8%)
+      </content>
+    </note>
+    <note priority="medium">
+      <title>Environment Variables Pattern</title>
+      <content>
+Required environment variables (follow Story 1.1 config.go pattern):
+- DB_HOST (default: localhost)
+- DB_PORT (default: 5432)
+- DB_NAME (required, no default)
+- DB_USER (required, no default)
+- DB_PASSWORD (required, no default)
+- DB_MAX_CONNS (default: 20)
+
+Validate all required vars at startup. Return descriptive error if missing.
+Create NewDBConfig() function similar to NewConfig() in internal/rpc/config.go:29-42.
+      </content>
+    </note>
+  </implementation-notes>
+
+  <!-- Files to Create -->
+  <files-to-create>
+    <file path="migrations/000001_initial_schema.up.sql" type="sql">CREATE TABLE statements for blocks, transactions, logs with foreign keys</file>
+    <file path="migrations/000001_initial_schema.down.sql" type="sql">DROP TABLE statements in reverse dependency order</file>
+    <file path="migrations/000002_add_indexes.up.sql" type="sql">CREATE INDEX statements for 6 composite indexes</file>
+    <file path="migrations/000002_add_indexes.down.sql" type="sql">DROP INDEX statements for all indexes</file>
+    <file path="internal/db/config.go" type="go">Database configuration struct and NewDBConfig() function</file>
+    <file path="internal/db/connection.go" type="go">pgx connection pool initialization and health check</file>
+    <file path="internal/db/migrations.go" type="go">golang-migrate integration and runMigrations() function</file>
+    <file path="internal/db/config_test.go" type="go">Configuration validation tests</file>
+    <file path="internal/db/migrations_test.go" type="go">Migration execution integration tests</file>
+  </files-to-create>
+
+  <!-- Dependencies on Other Stories -->
+  <dependencies>
+    <story-dependency>
+      <story-key>1-1-ethereum-rpc-client-with-retry-logic</story-key>
+      <status>done</status>
+      <relationship>provides</relationship>
+      <description>Provides go-ethereum types.Block/Transaction/Log data that will be stored in database schema. RPC client (internal/rpc/Client) will be used by Story 1.3 (Backfill) and 1.4 (Live-Tail) to fetch blocks for database insertion.</description>
+    </story-dependency>
+    <story-dependency>
+      <story-key>1-3-parallel-backfill-worker-pool</story-key>
+      <status>backlog</status>
+      <relationship>consumes</relationship>
+      <description>Will use this database schema to store historical blocks fetched during backfill. Requires bulk insert operations.</description>
+    </story-dependency>
+    <story-dependency>
+      <story-key>1-4-live-tail-mechanism-for-new-blocks</story-key>
+      <status>backlog</status>
+      <relationship>consumes</relationship>
+      <description>Will insert new blocks as they arrive using this schema.</description>
+    </story-dependency>
+    <story-dependency>
+      <story-key>1-5-chain-reorganization-detection-and-recovery</story-key>
+      <status>backlog</status>
+      <relationship>consumes</relationship>
+      <description>Will use orphaned flag in blocks table to mark invalid blocks during chain reorganizations.</description>
+    </story-dependency>
+    <story-dependency>
+      <story-key>2-1-rest-api-endpoints-for-blockchain-queries</story-key>
+      <status>backlog</status>
+      <relationship>consumes</relationship>
+      <description>Will query this schema for blockchain data via REST endpoints.</description>
+    </story-dependency>
+  </dependencies>
+
+  <!-- Epic Context -->
+  <epic-context>
+    <epic-id>1</epic-id>
+    <epic-title>Core Indexing &amp; Data Pipeline</epic-title>
+    <epic-goal>Build a production-grade blockchain data pipeline that efficiently indexes Ethereum blocks, handles chain reorganizations, and provides operational visibility.</epic-goal>
+    <epic-success-criteria>
+      - Successfully backfills 5,000 blocks in under 5 minutes
+      - Live-tail maintains &lt;2 second lag from network head
+      - Automatic reorg detection and recovery for forks up to 6 blocks deep
+      - Prometheus metrics accurately reflect system state
+      - System runs continuously for 24+ hours without issues
+    </epic-success-criteria>
+  </epic-context>
+
+</story-context>

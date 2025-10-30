@@ -241,6 +241,301 @@ type Log struct {
 }
 ```
 
+### Data Model Relationships
+
+#### Entity Relationship Diagram
+
+```
+┌─────────────────────────────────────────────────┐
+│ blocks                                           │
+│ ─────────────────────────────────────────────   │
+│ height (PK) BIGINT                               │
+│ hash BYTEA UNIQUE                                │
+│ parent_hash BYTEA  ──────┐                       │
+│ orphaned BOOLEAN         │  Self-referential     │
+│ ...                      └─► (parent_hash → hash)│
+└────────┬────────────────────────────────────────┘
+         │ 1
+         │
+         │ referenced by (ON DELETE CASCADE)
+         │
+         │ N
+┌────────▼────────────────────────────────────────┐
+│ transactions                                     │
+│ ─────────────────────────────────────────────   │
+│ hash (PK) BYTEA                                  │
+│ block_height (FK) BIGINT  ──► blocks(height)    │
+│ tx_index INTEGER                                 │
+│ from_addr BYTEA                                  │
+│ to_addr BYTEA (nullable)                         │
+│ success BOOLEAN                                  │
+│ ...                                              │
+└────────┬────────────────────────────────────────┘
+         │ 1
+         │
+         │ referenced by (ON DELETE CASCADE)
+         │
+         │ N
+┌────────▼────────────────────────────────────────┐
+│ logs                                             │
+│ ─────────────────────────────────────────────   │
+│ id (PK) BIGSERIAL                                │
+│ tx_hash (FK) BYTEA  ──► transactions(hash)       │
+│ log_index INTEGER                                │
+│ address BYTEA                                    │
+│ topic0-3 BYTEA (nullable)                        │
+│ data BYTEA                                       │
+│ UNIQUE(tx_hash, log_index)                       │
+└─────────────────────────────────────────────────┘
+```
+
+#### Relationship Specifications
+
+**1. Block → Block (Self-Referential)**
+- **Type:** Optional 1:1 (Parent-Child Chain)
+- **Implementation:** `blocks.parent_hash` references `blocks.hash` (logical, not enforced FK)
+- **Cascade Behavior:** Not applicable (logical reference only)
+- **Purpose:** Maintains blockchain chain structure for reorg detection
+- **Query Pattern:** `SELECT * FROM blocks WHERE hash = $1` (parent lookup)
+- **Index:** `idx_blocks_hash` supports parent lookups
+
+**2. Block → Transactions (One-to-Many)**
+- **Type:** 1:N (One block contains many transactions)
+- **Implementation:** `transactions.block_height` REFERENCES `blocks(height)` ON DELETE CASCADE
+- **Cascade Behavior:** Deleting a block automatically deletes all its transactions
+- **Purpose:** Ensures referential integrity; used during reorg recovery
+- **Cardinality:** 0 to ~200 transactions per block (typical Ethereum range)
+- **Query Patterns:**
+  - Get all transactions for a block: `SELECT * FROM transactions WHERE block_height = $1`
+  - Get transaction with block context: `SELECT t.*, b.timestamp FROM transactions t JOIN blocks b ON t.block_height = b.height WHERE t.hash = $1`
+- **Indexes:**
+  - `idx_tx_block_height` supports block → transactions lookups
+  - `idx_tx_block_index` supports ordered transaction retrieval
+
+**3. Transaction → Logs (One-to-Many)**
+- **Type:** 1:N (One transaction emits many logs)
+- **Implementation:** `logs.tx_hash` REFERENCES `transactions(hash)` ON DELETE CASCADE
+- **Cascade Behavior:** Deleting a transaction automatically deletes all its logs
+- **Purpose:** Maintains event log association with transactions
+- **Cardinality:** 0 to ~20 logs per transaction (typical smart contract interactions)
+- **Query Patterns:**
+  - Get all logs for a transaction: `SELECT * FROM logs WHERE tx_hash = $1 ORDER BY log_index`
+  - Get logs by contract address: `SELECT * FROM logs WHERE address = $1 AND topic0 = $2`
+- **Indexes:**
+  - `idx_logs_tx_hash` supports transaction → logs lookups
+  - `idx_logs_address_topic0` supports event filtering queries
+
+#### Data Integrity Rules
+
+**Foreign Key Constraints:**
+1. `transactions.block_height` → `blocks(height)` ON DELETE CASCADE
+2. `logs.tx_hash` → `transactions(hash)` ON DELETE CASCADE
+
+**Uniqueness Constraints:**
+1. `blocks(height)` - Primary key, ensures one block per height
+2. `blocks(hash)` - Unique index, prevents duplicate block hashes
+3. `transactions(hash)` - Primary key, ensures unique transaction hashes
+4. `logs(tx_hash, log_index)` - Compound unique constraint, prevents duplicate logs
+
+**Nullability Rules:**
+1. `transactions.to_addr` - NULL allowed (contract creation transactions)
+2. `logs.topic0-3` - NULL allowed (events may have 0-4 topics)
+3. All foreign keys are NOT NULL (referential integrity required)
+
+**Cascade Deletion Flow:**
+```
+DELETE FROM blocks WHERE height = X AND orphaned = TRUE
+  └─► CASCADE DELETE transactions WHERE block_height = X
+      └─► CASCADE DELETE logs WHERE tx_hash IN (SELECT hash FROM transactions WHERE block_height = X)
+```
+
+### Component-to-Data-Model Mapping
+
+#### Data Flow Through Components
+
+```
+┌───────────────────────┐
+│ Ethereum RPC Node     │
+│ (External)            │
+└───────┬───────────────┘
+        │ JSON-RPC
+        │ types.Block, types.Transaction, types.Log
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ RPC Client (internal/rpc/)                                │
+│ ───────────────────────────────────────────────────────── │
+│ • Fetches go-ethereum types from RPC                      │
+│ • Returns: *types.Block (with embedded transactions/logs) │
+│ • No data model transformation (passes through raw types) │
+└───────┬───────────────────────────────────────────────────┘
+        │ *types.Block
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ Ingestion Layer (internal/ingest/)                        │
+│ ───────────────────────────────────────────────────────── │
+│ • Parses types.Block → Block domain model                 │
+│ • Parses types.Transaction → Transaction domain model     │
+│ • Parses types.Log → Log domain model                     │
+│ • Normalizes data (extract fields, convert types)         │
+│ • Returns: *ingest.Block (with nested Transactions/Logs)  │
+└───────┬───────────────────────────────────────────────────┘
+        │ *ingest.Block
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ Indexing Layer (internal/index/)                          │
+│ ───────────────────────────────────────────────────────── │
+│ • Backfill: Processes []*ingest.Block in parallel         │
+│ • Live-Tail: Processes *ingest.Block sequentially         │
+│ • Reorg Handler: Marks blocks as orphaned                 │
+│ • Passes domain models to storage layer                   │
+└───────┬───────────────────────────────────────────────────┘
+        │ []*ingest.Block or *ingest.Block
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ Storage Layer (internal/store/pg/)                        │
+│ ───────────────────────────────────────────────────────── │
+│ • Maps ingest.Block → INSERT INTO blocks                  │
+│ • Maps ingest.Transaction → INSERT INTO transactions      │
+│ • Maps ingest.Log → INSERT INTO logs                      │
+│ • Executes bulk inserts for performance                   │
+│ • Returns errors for constraint violations                │
+└───────┬───────────────────────────────────────────────────┘
+        │ SQL INSERTs
+        ▼
+┌───────────────────────────────────────────────────────────┐
+│ PostgreSQL Database                                        │
+│ ───────────────────────────────────────────────────────── │
+│ • Stores blocks, transactions, logs tables                │
+│ • Enforces foreign key constraints                        │
+│ • Maintains indexes for query performance                 │
+└───────────────────────────────────────────────────────────┘
+```
+
+#### Component Responsibilities by Data Model
+
+**Blocks Data Model:**
+
+| Component | Responsibility | Input | Output | Methods |
+|-----------|----------------|-------|--------|---------|
+| RPC Client | Fetch block from Ethereum | block height (uint64) | *types.Block | `GetBlockByNumber(height)` |
+| Ingestion Layer | Parse go-ethereum types | *types.Block | *ingest.Block | `ParseBlock(block)` |
+| Indexing Layer (Backfill) | Coordinate parallel fetch | height range | []*ingest.Block | `Backfill(startHeight, endHeight)` |
+| Indexing Layer (Live-Tail) | Fetch next sequential block | DB head height + 1 | *ingest.Block | `processNextBlock()` |
+| Indexing Layer (Reorg) | Mark blocks as orphaned | fork point, depth | Updated orphaned flags | `HandleReorg(newBlock)` |
+| Storage Layer | Insert/query blocks | *ingest.Block | Database rows | `InsertBlocks(blocks)`, `GetBlockByHeight(height)` |
+
+**Transactions Data Model:**
+
+| Component | Responsibility | Input | Output | Methods |
+|-----------|----------------|-------|--------|---------|
+| RPC Client | Embedded in Block | N/A | types.Transactions (in Block) | N/A (part of Block) |
+| Ingestion Layer | Parse from Block.Transactions() | types.Transactions | []ingest.Transaction | `parseTx(tx, blockHeight)` |
+| Indexing Layer | Pass through with Block | N/A | N/A (nested in Block) | N/A |
+| Storage Layer | Insert with block | []ingest.Transaction | Database rows | `InsertTransactions(txs)` (called by InsertBlocks) |
+| Storage Layer | Query by hash or address | tx hash or address | *ingest.Transaction or []Transaction | `GetTransactionByHash(hash)`, `GetTransactionsByAddress(addr)` |
+
+**Logs Data Model:**
+
+| Component | Responsibility | Input | Output | Methods |
+|-----------|----------------|-------|--------|---------|
+| RPC Client | Fetch receipts (optional) | transaction hash | *types.Receipt | `GetTransactionReceipt(txHash)` |
+| Ingestion Layer | Parse from Receipt.Logs | types.Log | []ingest.Log | `parseLog(log)` |
+| Indexing Layer | Pass through with Transaction | N/A | N/A (nested in Transaction) | N/A |
+| Storage Layer | Insert with transaction | []ingest.Log | Database rows | `InsertLogs(logs)` (called by InsertBlocks) |
+| Storage Layer | Query by address/topic | address, topic0 | []ingest.Log | `GetLogsByAddressAndTopic(address, topic0)` |
+
+#### Data Transformation Pipeline
+
+**Block Transformation:**
+```
+types.Block (go-ethereum)
+  └─► ingest.Block (domain model)
+      └─► SQL INSERT (database row)
+
+Field Mappings:
+  types.Header.Number       → ingest.Block.Height     → blocks.height
+  types.Block.Hash()        → ingest.Block.Hash       → blocks.hash
+  types.Header.ParentHash   → ingest.Block.ParentHash → blocks.parent_hash
+  types.Header.Coinbase     → ingest.Block.Miner      → blocks.miner
+  types.Header.GasUsed      → ingest.Block.GasUsed    → blocks.gas_used
+  len(Block.Transactions()) → ingest.Block.TxCount    → blocks.tx_count
+```
+
+**Transaction Transformation:**
+```
+types.Transaction (go-ethereum)
+  └─► ingest.Transaction (domain model)
+      └─► SQL INSERT (database row)
+
+Field Mappings:
+  types.Transaction.Hash()     → ingest.Transaction.Hash      → transactions.hash
+  block.Header.Number          → ingest.Transaction.BlockHeight → transactions.block_height
+  transaction index            → ingest.Transaction.TxIndex   → transactions.tx_index
+  types.Transaction.From()     → ingest.Transaction.FromAddr  → transactions.from_addr
+  types.Transaction.To()       → ingest.Transaction.ToAddr    → transactions.to_addr (nullable)
+  types.Receipt.Status         → ingest.Transaction.Success   → transactions.success
+```
+
+**Log Transformation:**
+```
+types.Log (go-ethereum)
+  └─► ingest.Log (domain model)
+      └─► SQL INSERT (database row)
+
+Field Mappings:
+  types.Log.TxHash         → ingest.Log.TxHash     → logs.tx_hash
+  types.Log.Index          → ingest.Log.LogIndex   → logs.log_index
+  types.Log.Address        → ingest.Log.Address    → logs.address
+  types.Log.Topics[0-3]    → ingest.Log.Topics[0-3] → logs.topic0-3 (nullable)
+  types.Log.Data           → ingest.Log.Data       → logs.data
+```
+
+#### Query Patterns by Use Case
+
+**Use Case 1: Get Block with All Transactions**
+```
+Components: Storage Layer → Database
+Query:
+  SELECT * FROM blocks WHERE height = $1;
+  SELECT * FROM transactions WHERE block_height = $1 ORDER BY tx_index;
+Model Flow: Database rows → ingest.Block (with nested Transactions)
+```
+
+**Use Case 2: Get Transaction History for Address**
+```
+Components: Storage Layer → Database
+Query:
+  SELECT t.*, b.timestamp
+  FROM transactions t
+  JOIN blocks b ON t.block_height = b.height
+  WHERE t.from_addr = $1 OR t.to_addr = $1
+  ORDER BY b.height DESC
+  LIMIT 100;
+Index Used: idx_tx_from_addr_block, idx_tx_to_addr_block
+Model Flow: Database rows → []ingest.Transaction
+```
+
+**Use Case 3: Reorg Recovery**
+```
+Components: Reorg Handler → Storage Layer → Database
+Query:
+  UPDATE blocks SET orphaned = TRUE WHERE height IN ($1, $2, ...);
+Cascade: Transactions and logs remain in database but associated with orphaned blocks
+Model Flow: No model transformation (boolean flag update only)
+```
+
+**Use Case 4: Event Log Filtering**
+```
+Components: Storage Layer → Database
+Query:
+  SELECT * FROM logs
+  WHERE address = $1 AND topic0 = $2
+  ORDER BY id DESC
+  LIMIT 1000;
+Index Used: idx_logs_address_topic0
+Model Flow: Database rows → []ingest.Log
+```
+
 ---
 
 ## Story Implementation Details
