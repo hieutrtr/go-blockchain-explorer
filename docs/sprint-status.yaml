@@ -1,0 +1,57 @@
+# generated: 2025-10-30
+# project: go-blockchain-explorer
+# project_key: go-blockchain-explorer
+# tracking_system: file-system
+# story_location: {project-root}/docs/stories
+
+# STATUS DEFINITIONS:
+# ==================
+# Epic Status:
+#   - backlog: Epic exists in epic file but not contexted
+#   - contexted: Next epic tech context created by *epic-tech-context (required)
+#
+# Story Status:
+#   - backlog: Story only exists in epic file
+#   - drafted: Story file created in stories folder by *create-story
+#   - ready-for-dev: Draft approved and story context created by *story-ready
+#   - in-progress: Developer actively working on implementation by *dev-story
+#   - review: Implementation complete, ready for review by *code-review
+#   - done: Story completed by *story-done
+#
+# Retrospective Status:
+#   - optional: Can be completed but not required
+#   - completed: Retrospective has been done by *retrospective
+#
+# WORKFLOW NOTES:
+# ===============
+# - Epics should be 'contexted' before stories can be 'drafted'
+# - SM typically drafts next story ONLY after previous one is 'done' to incorporate learnings
+# - Dev moves story to 'review', dev reviews, then Dev moves to 'done'
+
+generated: 2025-10-30
+project: go-blockchain-explorer
+project_key: go-blockchain-explorer
+tracking_system: file-system
+story_location: "{project-root}/docs/stories"
+
+development_status:
+  epic-1: backlog
+  1-1-ethereum-rpc-client-with-retry-logic: review
+  1-2-postgresql-schema-and-migrations: backlog
+  1-3-parallel-backfill-worker-pool: backlog
+  1-4-live-tail-mechanism-for-new-blocks: backlog
+  1-5-chain-reorganization-detection-and-recovery: backlog
+  1-6-database-migration-system: backlog
+  1-7-prometheus-metrics-for-indexer: backlog
+  1-8-structured-logging-for-debugging: backlog
+  1-9-integration-tests-for-indexer-pipeline: backlog
+  epic-1-retrospective: optional
+
+  epic-2: backlog
+  2-1-rest-api-endpoints-for-blockchain-queries: backlog
+  2-2-websocket-streaming-for-real-time-updates: backlog
+  2-3-pagination-implementation-for-large-result-sets: backlog
+  2-4-minimal-spa-frontend-with-live-blocks-ticker: backlog
+  2-5-transaction-search-and-display-interface: backlog
+  2-6-health-check-and-metrics-exposure: backlog
+  epic-2-retrospective: optional

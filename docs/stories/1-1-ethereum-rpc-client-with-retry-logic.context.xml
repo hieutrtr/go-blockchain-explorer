@@ -1,0 +1,298 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1</storyId>
+    <title>Ethereum RPC Client with Retry Logic</title>
+    <status>drafted</status>
+    <generatedAt>2025-10-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-1-ethereum-rpc-client-with-retry-logic.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain indexer system</asA>
+    <iWant>a robust RPC client layer to communicate with Ethereum nodes with automatic retry logic</iWant>
+    <soThat>I can reliably fetch blockchain data despite transient network failures and rate limiting</soThat>
+    <tasks>
+      <task id="1" acs="1,4">
+        <name>Set up RPC client foundation</name>
+        <subtasks>
+          <subtask id="1.1">Initialize Go module structure for internal/rpc/ package</subtask>
+          <subtask id="1.2">Create Client struct with go-ethereum ethclient integration</subtask>
+          <subtask id="1.3">Implement RPC URL configuration via environment variable (RPC_URL)</subtask>
+          <subtask id="1.4">Configure connection timeout (10s) and request timeout (30s)</subtask>
+          <subtask id="1.5">Implement GetBlockByNumber(height uint64) method wrapping eth_getBlockByNumber</subtask>
+          <subtask id="1.6">Implement GetTransactionReceipt(txHash []byte) method wrapping eth_getTransactionReceipt</subtask>
+        </subtasks>
+      </task>
+      <task id="2" acs="2">
+        <name>Implement retry logic with exponential backoff</name>
+        <subtasks>
+          <subtask id="2.1">Create retry configuration struct (max retries, base delay, max delay)</subtask>
+          <subtask id="2.2">Implement exponential backoff calculator (delays: 1s, 2s, 4s, 8s, 16s)</subtask>
+          <subtask id="2.3">Wrap RPC calls with retry loop logic</subtask>
+          <subtask id="2.4">Add context support for cancellation during retries</subtask>
+          <subtask id="2.5">Track retry attempt number and include in logs</subtask>
+        </subtasks>
+      </task>
+      <task id="3" acs="3">
+        <name>Implement error classification</name>
+        <subtasks>
+          <subtask id="3.1">Create error type constants (ErrTransient, ErrPermanent, ErrRateLimit)</subtask>
+          <subtask id="3.2">Implement classifyError(err error) function to categorize go-ethereum errors</subtask>
+          <subtask id="3.3">Handle network errors (connection refused, timeout) → Transient</subtask>
+          <subtask id="3.4">Handle rate limit responses (429 status) → RateLimit</subtask>
+          <subtask id="3.5">Handle invalid parameter errors → Permanent</subtask>
+          <subtask id="3.6">Return early (no retry) for permanent errors</subtask>
+        </subtasks>
+      </task>
+      <task id="4" acs="5">
+        <name>Add structured logging</name>
+        <subtasks>
+          <subtask id="4.1">Initialize log/slog logger with JSON output format</subtask>
+          <subtask id="4.2">Log RPC request start (method, parameters, timestamp)</subtask>
+          <subtask id="4.3">Log RPC errors with structured context (error_type, retry_attempt, block_height)</subtask>
+          <subtask id="4.4">Log successful requests with response time</subtask>
+          <subtask id="4.5">Log retry attempts with backoff duration</subtask>
+        </subtasks>
+      </task>
+      <task id="5" acs="1,2,3,4,5">
+        <name>Write unit tests</name>
+        <subtasks>
+          <subtask id="5.1">Mock go-ethereum ethclient for testing</subtask>
+          <subtask id="5.2">Test successful block fetching (AC1)</subtask>
+          <subtask id="5.3">Test retry on transient errors with correct backoff delays (AC2)</subtask>
+          <subtask id="5.4">Test immediate failure on permanent errors (AC3)</subtask>
+          <subtask id="5.5">Test timeout behavior (AC4)</subtask>
+          <subtask id="5.6">Test error classification logic (AC3)</subtask>
+          <subtask id="5.7">Validate structured log output (AC5)</subtask>
+        </subtasks>
+      </task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="1" priority="high">
+      <name>Basic RPC Operations</name>
+      <requirements>
+        <requirement>Can successfully fetch blocks via eth_getBlockByNumber from Sepolia testnet</requirement>
+        <requirement>Can fetch transactions via eth_getTransactionReceipt</requirement>
+        <requirement>Supports configuration of RPC endpoint URL via environment variable</requirement>
+      </requirements>
+    </criterion>
+    <criterion id="2" priority="high">
+      <name>Retry Logic with Exponential Backoff</name>
+      <requirements>
+        <requirement>Transient failures (network timeouts, temporary unavailability) trigger automatic retry</requirement>
+        <requirement>Implements exponential backoff strategy (max 5 retries)</requirement>
+        <requirement>Retry delays: 1s, 2s, 4s, 8s, 16s between attempts</requirement>
+      </requirements>
+    </criterion>
+    <criterion id="3" priority="high">
+      <name>Error Classification</name>
+      <requirements>
+        <requirement>Permanent failures (invalid parameters, method not found) fail immediately without retry</requirement>
+        <requirement>Rate limit errors (429) trigger backoff and retry</requirement>
+        <requirement>Network errors (connection refused, timeout) trigger retry</requirement>
+        <requirement>All error types are distinguishable for debugging</requirement>
+      </requirements>
+    </criterion>
+    <criterion id="4" priority="medium">
+      <name>Connection Management</name>
+      <requirements>
+        <requirement>Implements connection timeout (10 seconds)</requirement>
+        <requirement>Implements request timeout (30 seconds)</requirement>
+        <requirement>Supports multiple RPC providers (Alchemy, Infura, public nodes)</requirement>
+      </requirements>
+    </criterion>
+    <criterion id="5" priority="high">
+      <name>Observability</name>
+      <requirements>
+        <requirement>RPC errors logged with structured context (error type, block height, retry attempt)</requirement>
+        <requirement>Success/failure metrics exposed for monitoring</requirement>
+        <requirement>Log entries include timestamp, RPC method, parameters, response time</requirement>
+      </requirements>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>FR001: Historical Block Indexing</section>
+        <snippet>System must be able to backfill and index historical blockchain blocks from Ethereum Sepolia testnet, configurable to fetch last N blocks (default: 5,000), processing them in parallel with bulk insert optimization for performance. This requires robust RPC client layer for blockchain interaction.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>NFR003: Reliability - Continuous Operation</section>
+        <snippet>The indexer must run continuously for 24+ hours without crashes, memory leaks, or degradation, with automatic retry logic for transient RPC failures using exponential backoff.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture</title>
+        <section>4.1.1 RPC Client Layer</section>
+        <snippet>Responsibilities: Establish and maintain connection to Ethereum RPC endpoint, execute JSON-RPC methods (eth_getBlockByNumber, eth_getTransactionReceipt), retry transient failures with exponential backoff, classify errors (transient vs permanent), connection pooling and timeout handling. Error Handling: Network errors retry with exponential backoff (max 5 retries), rate limit errors backoff and retry, invalid parameters fail immediately.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture</title>
+        <section>1.1 Technology Stack - go-ethereum</section>
+        <snippet>go-ethereum v1.16.5: Official Ethereum implementation provides reliable RPC client, block parsing, and transaction decoding. Latest stable version (Oct 2025) supports Osaka (Fusaka) fork. Requires Go 1.24+. Well-documented and actively maintained.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Epic 1 Technical Specification</title>
+        <section>Story 1.1: Technical Details</section>
+        <snippet>Component implementation at internal/rpc/ package. Use go-ethereum ethclient for RPC operations. Configure RPC endpoint via RPC_URL environment variable. Implement connection timeout (10s) and request timeout (30s). Error handling: classify errors into transient (retry), permanent (fail), and rate-limit (backoff). Retry logic: exponential backoff with max 5 retries (1s, 2s, 4s, 8s, 16s delays). Structured logging with log/slog for all RPC operations.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epic-stories.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 1.1: Acceptance Criteria</section>
+        <snippet>Can successfully fetch blocks via eth_getBlockByNumber. Can fetch transactions via eth_getTransactionReceipt. Transient failures trigger retry with exponential backoff (max 5 retries). Permanent failures fail immediately. RPC errors logged with structured context.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <!-- No existing code - greenfield project, first story -->
+    </code>
+    <dependencies>
+      <go>
+        <package>github.com/ethereum/go-ethereum</package>
+        <version>v1.16.5</version>
+        <purpose>Official Ethereum RPC client, provides ethclient for blockchain interaction</purpose>
+      </go>
+      <go>
+        <package>log/slog</package>
+        <version>stdlib (Go 1.21+)</version>
+        <purpose>Structured JSON logging for RPC operations</purpose>
+      </go>
+      <go>
+        <package>github.com/stretchr/testify</package>
+        <version>v1.10.0</version>
+        <purpose>Testing framework with mocking capabilities for unit tests</purpose>
+      </go>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">
+      <rule>Layer Separation: RPC client must be isolated in internal/rpc/ package with no dependencies on other internal packages</rule>
+      <rationale>This is the foundation layer - all other components (ingestion, indexing, storage) will depend on it</rationale>
+      <source>docs/solution-architecture.md#2.1-Repository-Structure</source>
+    </constraint>
+    <constraint type="architecture">
+      <rule>Modular Architecture: Clear separation between RPC → Ingestion → Indexing → Storage → API layers</rule>
+      <rationale>Ensures maintainability and testability</rationale>
+      <source>docs/solution-architecture.md#2.1-System-Architecture</source>
+    </constraint>
+    <constraint type="technology">
+      <rule>Go 1.24+ Required: Must use Go 1.24 or later (required by go-ethereum v1.16.5)</rule>
+      <rationale>go-ethereum v1.16.5 requires Go 1.24+ for compatibility</rationale>
+      <source>docs/solution-architecture.md#1.1-Technology-Stack</source>
+    </constraint>
+    <constraint type="performance">
+      <rule>Retry Budget: Max 5 retries with exponential backoff (1s, 2s, 4s, 8s, 16s = 31s total delay)</rule>
+      <rationale>Balances reliability with timeout constraints for downstream components</rationale>
+      <source>docs/stories/1-1-ethereum-rpc-client-with-retry-logic.md#Performance-Considerations</source>
+    </constraint>
+    <constraint type="security">
+      <rule>API Key Protection: RPC_URL must come from environment variable, never hardcoded or logged</rule>
+      <rationale>RPC URLs often contain API keys in query parameters</rationale>
+      <source>docs/stories/1-1-ethereum-rpc-client-with-retry-logic.md#Security-Considerations</source>
+    </constraint>
+    <constraint type="testing">
+      <rule>Test Coverage: Unit tests must achieve >70% coverage for internal/rpc/ package</rule>
+      <rationale>Foundation layer requires high confidence - sets standard for subsequent stories</rationale>
+      <source>docs/solution-architecture.md#8.1-Testing-Approach</source>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>Client.GetBlockByNumber</name>
+      <kind>Go method signature</kind>
+      <signature>func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Block, error)</signature>
+      <description>Fetches a block by height from Ethereum RPC with automatic retry logic</description>
+      <path>internal/rpc/client.go</path>
+    </interface>
+    <interface>
+      <name>Client.GetTransactionReceipt</name>
+      <kind>Go method signature</kind>
+      <signature>func (c *Client) GetTransactionReceipt(ctx context.Context, txHash []byte) (*types.Receipt, error)</signature>
+      <description>Fetches a transaction receipt by hash from Ethereum RPC with automatic retry logic</description>
+      <path>internal/rpc/client.go</path>
+    </interface>
+    <interface>
+      <name>classifyError</name>
+      <kind>Go function signature</kind>
+      <signature>func classifyError(err error) ErrorType</signature>
+      <description>Classifies go-ethereum errors into Transient, Permanent, or RateLimit types</description>
+      <path>internal/rpc/errors.go</path>
+    </interface>
+    <interface>
+      <name>Config</name>
+      <kind>Go struct</kind>
+      <signature>type Config struct { RPCURL string; Timeout time.Duration; MaxRetries int; RetryBackoff time.Duration }</signature>
+      <description>Configuration for RPC client including URL, timeouts, and retry parameters</description>
+      <path>internal/rpc/config.go</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+Use Go standard library testing package with testify/assert for assertions and testify/mock for mocking. Unit tests must cover >70% of code in internal/rpc/ package. Mock go-ethereum ethclient.Client interface to simulate various RPC responses and error conditions. Tests should verify: successful operations, retry behavior with correct backoff timing, error classification logic, timeout handling, and structured log output. Use table-driven tests where appropriate for testing multiple scenarios.</standards>
+    <locations>
+      <location>internal/rpc/client_test.go</location>
+      <location>internal/rpc/retry_test.go</location>
+      <location>internal/rpc/errors_test.go</location>
+    </locations>
+    <ideas>
+      <idea ac="1">
+        <name>TestClient_GetBlockByNumber_Success</name>
+        <description>Verify successful block fetch via eth_getBlockByNumber with valid block height</description>
+      </idea>
+      <idea ac="1">
+        <name>TestClient_GetTransactionReceipt_Success</name>
+        <description>Verify successful transaction receipt fetch with valid transaction hash</description>
+      </idea>
+      <idea ac="2">
+        <name>TestRetry_ExponentialBackoff</name>
+        <description>Mock transient failures and verify retry attempts with correct backoff delays (1s, 2s, 4s, 8s, 16s)</description>
+      </idea>
+      <idea ac="2">
+        <name>TestRetry_MaxRetriesExceeded</name>
+        <description>Verify that after 5 failed retry attempts, error is returned without further retries</description>
+      </idea>
+      <idea ac="3">
+        <name>TestErrorClassification_Transient</name>
+        <description>Verify network errors (connection refused, timeout) are classified as Transient and trigger retry</description>
+      </idea>
+      <idea ac="3">
+        <name>TestErrorClassification_Permanent</name>
+        <description>Verify invalid parameter errors are classified as Permanent and fail immediately without retry</description>
+      </idea>
+      <idea ac="3">
+        <name>TestErrorClassification_RateLimit</name>
+        <description>Verify 429 rate limit responses are classified as RateLimit and trigger backoff + retry</description>
+      </idea>
+      <idea ac="4">
+        <name>TestClient_ConnectionTimeout</name>
+        <description>Verify connection timeout (10s) is enforced and triggers retry</description>
+      </idea>
+      <idea ac="4">
+        <name>TestClient_RequestTimeout</name>
+        <description>Verify request timeout (30s) is enforced for RPC calls</description>
+      </idea>
+      <idea ac="5">
+        <name>TestLogging_StructuredOutput</name>
+        <description>Verify log entries contain required fields (timestamp, method, parameters, error_type, retry_attempt)</description>
+      </idea>
+      <idea ac="5">
+        <name>TestLogging_ResponseTime</name>
+        <description>Verify successful requests log response time</description>
+      </idea>
+    </ideas>
+  </tests>
+</story-context>
