@@ -2,14 +2,11 @@ package rpc
 
 import (
 	"context"
-	"errors"
-	"math/big"
+	"os"
 	"testing"
 	"time"
 
-	"github.com/ethereum/go-ethereum"
 	"github.com/ethereum/go-ethereum/common"
-	"github.com/ethereum/go-ethereum/core/types"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -37,10 +34,8 @@ func TestNewConfig(t *testing.T) {
 
 	for _, tt := range tests {
 		t.Run(tt.name, func(t *testing.T) {
-			// Set environment variable
-			if tt.envVar != "" {
-				t.Setenv("RPC_URL", tt.envVar)
-			}
+			// Set or clear environment variable
+			t.Setenv("RPC_URL", tt.envVar)
 
 			cfg, err := NewConfig()
 
@@ -167,12 +162,12 @@ func TestClient_ChainID_Integration(t *testing.T) {
 // Helper function to get test RPC URL
 func getTestRPCURL(t *testing.T) string {
 	// Try environment variable first
-	if url := t.Getenv("RPC_URL"); url != "" {
+	if url := os.Getenv("RPC_URL"); url != "" {
 		return url
 	}
 
 	// Fallback to TEST_RPC_URL for integration tests
-	return t.Getenv("TEST_RPC_URL")
+	return os.Getenv("TEST_RPC_URL")
 }
 
 // Benchmark tests
@@ -198,7 +193,7 @@ func BenchmarkClient_GetBlockByNumber(b *testing.B) {
 }
 
 func getEnvOrSkip(b *testing.B, key string) string {
-	value := b.Getenv(key)
+	value := os.Getenv(key)
 	if value == "" {
 		b.Skipf("%s not set, skipping benchmark", key)
 	}

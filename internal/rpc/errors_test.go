@@ -1,12 +1,10 @@
 package rpc
 
 import (
-	"context"
 	"errors"
 	"net"
 	"syscall"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 )

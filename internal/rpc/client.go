@@ -82,7 +82,6 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 	)
 
 	var block *types.Block
-	var blockErr error
 
 	// Create operation closure for retry logic
 	operation := func() error {
@@ -93,7 +92,6 @@ func (c *Client) GetBlockByNumber(ctx context.Context, height uint64) (*types.Bl
 		// Fetch block with transactions
 		blk, err := c.ethClient.BlockByNumber(reqCtx, big.NewInt(int64(height)))
 		if err != nil {
-			blockErr = err
 			return err
 		}
 
@@ -153,7 +151,6 @@ func (c *Client) GetTransactionReceipt(ctx context.Context, txHash common.Hash) 
 	)
 
 	var receipt *types.Receipt
-	var receiptErr error
 
 	// Create operation closure for retry logic
 	operation := func() error {
@@ -166,10 +163,8 @@ func (c *Client) GetTransactionReceipt(ctx context.Context, txHash common.Hash) 
 		if err != nil {
 			// Check if transaction not found (not an error to retry)
 			if err == ethereum.NotFound {
-				receiptErr = err
 				return NewRPCError("transaction not found", err)
 			}
-			receiptErr = err
 			return err
 		}
 
