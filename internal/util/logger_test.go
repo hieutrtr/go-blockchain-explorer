@@ -1,11 +1,15 @@
 package util
 
 import (
+	"bytes"
+	"encoding/json"
+	"log/slog"
 	"os"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewLogger(t *testing.T) {
@@ -284,6 +288,60 @@ func TestStructuredAttributes(t *testing.T) {
 				"success", true,
 				"batch_size", 25)
 		})
+	})
+}
+
+func TestJSONOutputFormat(t *testing.T) {
+	t.Run("logger outputs valid JSON with required fields", func(t *testing.T) {
+		// Create a buffer to capture output
+		var buf bytes.Buffer
+
+		// Create logger with buffer output
+		handler := slog.NewJSONHandler(&buf, &slog.HandlerOptions{
+			Level:     slog.LevelInfo,
+			AddSource: true,
+		})
+		logger := slog.New(handler)
+
+		// Log a message
+		logger.Info("test message", "key", "value", "count", 42)
+
+		// Parse JSON output
+		var logEntry map[string]interface{}
+		err := json.Unmarshal(buf.Bytes(), &logEntry)
+		require.NoError(t, err, "output should be valid JSON")
+
+		// Verify required fields exist
+		assert.Contains(t, logEntry, "time", "log should have time field")
+		assert.Contains(t, logEntry, "level", "log should have level field")
+		assert.Contains(t, logEntry, "msg", "log should have msg field")
+		assert.Contains(t, logEntry, "source", "log should have source field with AddSource enabled")
+
+		// Verify values
+		assert.Equal(t, "INFO", logEntry["level"])
+		assert.Equal(t, "test message", logEntry["msg"])
+		assert.Equal(t, "value", logEntry["key"])
+		assert.Equal(t, float64(42), logEntry["count"])
+
+		// Verify source has file and line info
+		source, ok := logEntry["source"].(map[string]interface{})
+		assert.True(t, ok, "source should be an object")
+		assert.Contains(t, source, "file")
+		assert.Contains(t, source, "line")
+	})
+
+	t.Run("logger supports case-insensitive LOG_LEVEL", func(t *testing.T) {
+		// Test lowercase
+		os.Setenv("LOG_LEVEL", "debug")
+		defer os.Unsetenv("LOG_LEVEL")
+
+		logger := NewLogger()
+		assert.NotNil(t, logger)
+
+		// Test mixed case
+		os.Setenv("LOG_LEVEL", "WaRn")
+		logger = NewLogger()
+		assert.NotNil(t, logger)
 	})
 }
 

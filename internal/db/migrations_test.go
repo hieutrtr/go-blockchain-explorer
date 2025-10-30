@@ -2,8 +2,6 @@ package db
 
 import (
 	"context"
-	"log/slog"
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -23,17 +21,15 @@ func TestRunMigrations_Integration(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
 	// Get absolute path to migrations directory
 	migrationsPath := "../../migrations"
 
 	// Test running migrations
-	err = RunMigrations(config, migrationsPath, logger)
+	err = RunMigrations(config, migrationsPath)
 	require.NoError(t, err, "initial migration should succeed")
 
 	// Test idempotency - running migrations again should be safe
-	err = RunMigrations(config, migrationsPath, logger)
+	err = RunMigrations(config, migrationsPath)
 	assert.NoError(t, err, "running migrations again should be safe (ErrNoChange)")
 
 	// Verify migration version
@@ -43,7 +39,7 @@ func TestRunMigrations_Integration(t *testing.T) {
 	assert.False(t, dirty, "migration should not be dirty")
 
 	// Test rollback
-	err = RollbackMigrations(config, migrationsPath, logger)
+	err = RollbackMigrations(config, migrationsPath)
 	assert.NoError(t, err, "rollback should succeed")
 
 	// Verify version decreased
@@ -63,16 +59,15 @@ func TestRunMigrations_WithConnection_Integration(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
 	// Run migrations
 	migrationsPath := "../../migrations"
-	err = RunMigrations(config, migrationsPath, logger)
+	err = RunMigrations(config, migrationsPath)
 	require.NoError(t, err)
 
 	// Create connection pool to verify schema
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	require.NoError(t, err)
 	defer pool.Close()
 
@@ -115,30 +110,20 @@ func TestRunMigrations_WithConnection_Integration(t *testing.T) {
 }
 
 func TestRunMigrations_NilConfig(t *testing.T) {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	err := RunMigrations(nil, "../../migrations", logger)
+	err := RunMigrations(nil, "../../migrations")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "config cannot be nil")
 }
 
-func TestRunMigrations_NilLogger(t *testing.T) {
-	config := NewConfigWithDefaults("localhost", 5432, "test", "user", "pass", 10)
-	err := RunMigrations(config, "../../migrations", nil)
-	assert.Error(t, err)
-	assert.Contains(t, err.Error(), "logger cannot be nil")
-}
-
 func TestRunMigrations_EmptyMigrationsPath(t *testing.T) {
 	config := NewConfigWithDefaults("localhost", 5432, "test", "user", "pass", 10)
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	err := RunMigrations(config, "", logger)
+	err := RunMigrations(config, "")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "migrationsPath cannot be empty")
 }
 
 func TestRollbackMigrations_NilConfig(t *testing.T) {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-	err := RollbackMigrations(nil, "../../migrations", logger)
+	err := RollbackMigrations(nil, "../../migrations")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "config cannot be nil")
 }
@@ -158,20 +143,18 @@ func TestGetMigrationVersion_EmptyPath(t *testing.T) {
 
 func TestRunMigrations_InvalidPath(t *testing.T) {
 	config := NewConfigWithDefaults("localhost", 5432, "test", "user", "pass", 10)
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// Use a path that doesn't exist
-	err := RunMigrations(config, "/nonexistent/path", logger)
+	err := RunMigrations(config, "/nonexistent/path")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create migrate instance")
 }
 
 func TestRollbackMigrations_InvalidPath(t *testing.T) {
 	config := NewConfigWithDefaults("localhost", 5432, "test", "user", "pass", 10)
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// Use a path that doesn't exist
-	err := RollbackMigrations(config, "/nonexistent/path", logger)
+	err := RollbackMigrations(config, "/nonexistent/path")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "failed to create migrate instance")
 }
@@ -187,9 +170,8 @@ func TestGetMigrationVersion_InvalidPath(t *testing.T) {
 
 func TestRollbackMigrations_EmptyPath(t *testing.T) {
 	config := NewConfigWithDefaults("localhost", 5432, "test", "user", "pass", 10)
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
-	err := RollbackMigrations(config, "", logger)
+	err := RollbackMigrations(config, "")
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "migrationsPath cannot be empty")
 }

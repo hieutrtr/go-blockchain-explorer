@@ -2,7 +2,6 @@ package db
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"testing"
 	"time"
@@ -22,10 +21,9 @@ func TestNewPool_Integration(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	require.NoError(t, err)
 	require.NotNil(t, pool)
 	defer pool.Close()
@@ -38,23 +36,12 @@ func TestNewPool_Integration(t *testing.T) {
 }
 
 func TestNewPool_NilConfig(t *testing.T) {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, nil, logger)
+	pool, err := NewPool(ctx, nil)
 	assert.Error(t, err)
 	assert.Nil(t, pool)
 	assert.Contains(t, err.Error(), "config cannot be nil")
-}
-
-func TestNewPool_NilLogger(t *testing.T) {
-	config := NewConfigWithDefaults("localhost", 5432, "test", "user", "pass", 10)
-	ctx := context.Background()
-
-	pool, err := NewPool(ctx, config, nil)
-	assert.Error(t, err)
-	assert.Nil(t, pool)
-	assert.Contains(t, err.Error(), "logger cannot be nil")
 }
 
 func TestNewPool_InvalidHost(t *testing.T) {
@@ -64,13 +51,12 @@ func TestNewPool_InvalidHost(t *testing.T) {
 
 	// Use an invalid host to test connection failure
 	config := NewConfigWithDefaults("invalid-host-that-does-not-exist", 5432, "test", "user", "pass", 10)
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 
 	// Use a short timeout to make test faster
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	assert.Error(t, err)
 	assert.Nil(t, pool)
 }
@@ -85,10 +71,9 @@ func TestPool_HealthCheck_Integration(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	require.NoError(t, err)
 	defer pool.Close()
 
@@ -107,10 +92,9 @@ func TestPool_HealthCheck_AfterClose(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	require.NoError(t, err)
 
 	// Close the pool
@@ -131,10 +115,9 @@ func TestPool_Stats_Integration(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	require.NoError(t, err)
 	defer pool.Close()
 
@@ -156,10 +139,9 @@ func TestPool_ConcurrentConnections_Integration(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	require.NoError(t, err)
 	defer pool.Close()
 
@@ -205,10 +187,9 @@ func TestPool_ContextCancellation_Integration(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	require.NoError(t, err)
 	defer pool.Close()
 
@@ -232,10 +213,9 @@ func TestPool_Close_Idempotent(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	require.NoError(t, err)
 
 	// Close should be idempotent - calling multiple times should not panic
@@ -244,13 +224,10 @@ func TestPool_Close_Idempotent(t *testing.T) {
 }
 
 func TestPool_Close_NilPool(t *testing.T) {
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
-
 	// Create a Pool with nil internal pool (edge case)
 	pool := &Pool{
 		Pool:   nil,
 		config: NewConfigWithDefaults("localhost", 5432, "test", "user", "pass", 10),
-		logger: logger,
 	}
 
 	// Close with nil pool should not panic
@@ -262,10 +239,9 @@ func TestPool_Close_NilPool(t *testing.T) {
 func TestNewPool_InvalidConnectionString(t *testing.T) {
 	// Config with invalid characters that would cause connection string parsing to fail
 	config := NewConfigWithDefaults("", 0, "", "", "", -1)
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	assert.Error(t, err)
 	assert.Nil(t, pool)
 }
@@ -285,12 +261,11 @@ func TestNewPool_ParseConfigError(t *testing.T) {
 		ConnLifetime: 30 * time.Minute,
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
 	// Try to connect to invalid host - should fail
 	config.Host = "invalid-host-does-not-exist-12345"
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	// Connection should fail (either at creation or ping)
 	assert.Error(t, err)
 	assert.Nil(t, pool)
@@ -320,10 +295,9 @@ func TestPool_AllMethods_Integration(t *testing.T) {
 		t.Skipf("skipping test: database configuration not available: %v", err)
 	}
 
-	logger := slog.New(slog.NewJSONHandler(os.Stdout, nil))
 	ctx := context.Background()
 
-	pool, err := NewPool(ctx, config, logger)
+	pool, err := NewPool(ctx, config)
 	if err != nil {
 		t.Skipf("skipping test: could not connect to database: %v", err)
 	}

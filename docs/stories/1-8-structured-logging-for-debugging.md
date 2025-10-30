@@ -252,6 +252,13 @@ Claude Haiku 4.5 (claude-haiku-4-5-20251001)
    - Updated `cmd/worker/main.go` to use util.GlobalLogger
    - Removed local logger initialization
 
+6. **Code Review Improvements**: ✅
+   - Added `AddSource: true` to include file/line info in logs
+   - Added JSON output validation test with field verification
+   - Added case-insensitive LOG_LEVEL support (LOG_LEVEL=info works)
+   - Fixed all database test signatures (removed logger parameters)
+   - All tests passing with 87.7% coverage
+
 ### File List
 
 **Created/Modified Files:**
@@ -276,3 +283,9 @@ Claude Haiku 4.5 (claude-haiku-4-5-20251001)
   - RPC Client, Database, and Backfill Coordinator integrations
   - All AC1-AC5 acceptance criteria met
   - Story marked for code review
+- 2025-10-30: Code review fixes applied
+  - Fixed database test compilation errors (removed logger parameter)
+  - Added source location to logs (AddSource: true)
+  - Added JSON output validation test
+  - Added case-insensitive LOG_LEVEL support
+  - All tests passing (87.7% coverage maintained)

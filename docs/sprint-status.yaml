@@ -40,7 +40,7 @@ development_status:
   1-2-postgresql-schema-and-migrations: review
   1-3-parallel-backfill-worker-pool: done
   1-4-live-tail-mechanism-for-new-blocks: done
-  1-5-chain-reorganization-detection-and-recovery: backlog
+  1-5-chain-reorganization-detection-and-recovery: drafted
   1-6-database-migration-system: backlog
   1-7-prometheus-metrics-for-indexer: done
   1-8-structured-logging-for-debugging: review

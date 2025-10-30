@@ -3,6 +3,7 @@ package util
 import (
 	"log/slog"
 	"os"
+	"strings"
 )
 
 // GlobalLogger is the application-wide logger instance
@@ -17,7 +18,7 @@ func init() {
 // LOG_LEVEL environment variable: DEBUG, INFO, WARN, ERROR (default: INFO)
 func NewLogger() *slog.Logger {
 	// Get log level from environment variable
-	levelStr := os.Getenv("LOG_LEVEL")
+	levelStr := strings.ToUpper(os.Getenv("LOG_LEVEL"))
 	if levelStr == "" {
 		levelStr = "INFO"
 	}
@@ -39,7 +40,8 @@ func NewLogger() *slog.Logger {
 
 	// Create JSON handler with specified level
 	handler := slog.NewJSONHandler(os.Stdout, &slog.HandlerOptions{
-		Level: level,
+		Level:     level,
+		AddSource: true, // Include source file and line number
 	})
 
 	// Create and return logger instance
