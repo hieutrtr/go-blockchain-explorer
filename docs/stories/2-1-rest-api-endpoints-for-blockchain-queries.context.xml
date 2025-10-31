@@ -1,0 +1,269 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>2.1</storyId>
+    <title>REST API Endpoints for Blockchain Queries</title>
+    <status>drafted</status>
+    <generatedAt>2025-10-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/2-1-rest-api-endpoints-for-blockchain-queries.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain data consumer (developer, analyst, or frontend application)</asA>
+    <iWant>RESTful API endpoints to query indexed blockchain data (blocks, transactions, address history, logs, and chain statistics)</iWant>
+    <soThat>I can access blockchain information via standard HTTP requests with sub-150ms response times and pagination support</soThat>
+    <tasks>
+      - Task 1: Create API server entry point (AC: #1, #12)
+      - Task 2: Implement API server with chi router (AC: #1, #10)
+      - Task 3: Implement middleware (AC: #8, #10, #12)
+      - Task 4: Implement block query handlers (AC: #2, #9, #11)
+      - Task 5: Implement transaction query handler (AC: #3, #9)
+      - Task 6: Implement address transaction history handler (AC: #4, #9, #11)
+      - Task 7: Implement event log filtering handler (AC: #5, #9, #11)
+      - Task 8: Implement chain statistics handler (AC: #6)
+      - Task 9: Implement health check handler (AC: #7)
+      - Task 10: Implement metrics endpoint (AC: #8)
+      - Task 11: Implement pagination utilities (AC: #2, #4, #5, #9)
+      - Task 12: Implement error handling utilities (AC: #9, #12)
+      - Task 13: Add unit tests for API handlers (AC: all)
+      - Task 14: Add integration tests with test database (AC: #11)
+      - Task 15: Performance testing and optimization (AC: #11)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    AC1: API Server Setup and Routing - HTTP server on configurable port, chi router with middleware (CORS, logging, metrics, recovery), /v1 API prefix, static file serving, graceful shutdown
+
+    AC2: Block Query Endpoints - GET /v1/blocks (paginated list), GET /v1/blocks/{height}, GET /v1/blocks/{hash}, returns block details with pagination metadata, only non-orphaned blocks
+
+    AC3: Transaction Query Endpoint - GET /v1/txs/{hash}, returns transaction details with hex-encoded addresses/hashes
+
+    AC4: Address Transaction History - GET /v1/address/{addr}/txs (paginated), address validation, default limit=50 max=100
+
+    AC5: Event Log Filtering - GET /v1/logs with address/topic0 filters, paginated, efficient queries using composite indexes
+
+    AC6: Chain Statistics Endpoint - GET /v1/stats/chain, returns latest_block, total counts, indexer lag metrics
+
+    AC7: Health Check Endpoint - GET /health, returns 200 when healthy with database status, 503 when unhealthy
+
+    AC8: Prometheus Metrics Endpoint - GET /metrics, exposes API request counters and latency histograms
+
+    AC9: Input Validation and Error Handling - Validate pagination, addresses, hashes, return 400/404/500 with structured JSON errors
+
+    AC10: CORS and Security Configuration - Configurable CORS origins, request timeout, no authentication for demo
+
+    AC11: API Performance - p95 latency <150ms, database connection pooling (max 10), composite indexes for efficient queries
+
+    AC12: Logging and Observability - Structured logging for all requests using internal/util/logger.go, startup logs with configuration
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-epic-2.md</path>
+        <title>Tech Spec: Epic 2 - API Layer &amp; User Interface</title>
+        <section>Story 2.1: REST API Endpoints for Blockchain Queries</section>
+        <snippet>Complete API specification with endpoint definitions, request/response schemas, router setup code examples, handler implementation patterns, and middleware configuration. Includes performance targets (p95 &lt;150ms) and database query optimization strategies.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Blockchain Explorer - Solution Architecture Document</title>
+        <section>API Server Components</section>
+        <snippet>Defines layered architecture: API layer → Storage layer → Database. chi router for HTTP routing, pgx for PostgreSQL access, Prometheus for metrics. Separate API process from indexer worker for independent scaling.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Blockchain Explorer Product Requirements Document</title>
+        <section>Functional Requirements FR004-FR008, Non-Functional Requirements NFR002</section>
+        <snippet>FR004-FR008 define required API endpoints (blocks, transactions, address history, logs, chain statistics). NFR002 specifies p95 latency &lt;150ms for all endpoints.</snippet>
+      </doc>
+      <doc>
+        <path>migrations/000001_initial_schema.up.sql</path>
+        <title>Database Schema - Initial Tables</title>
+        <section>blocks, transactions, logs tables</section>
+        <snippet>Defines PostgreSQL schema with blocks (height PK, hash unique, orphaned flag), transactions (hash PK, foreign key to blocks), logs (id PK, foreign key to transactions). All use BYTEA for addresses/hashes, NUMERIC for wei values.</snippet>
+      </doc>
+      <doc>
+        <path>migrations/000002_add_indexes.up.sql</path>
+        <title>Database Schema - Composite Indexes</title>
+        <section>Performance indexes for API queries</section>
+        <snippet>Composite indexes for efficient queries: idx_blocks_orphaned_height for block listing, idx_tx_from_addr_block and idx_tx_to_addr_block for address history, idx_logs_address_topic0 for event filtering. Partial indexes where applicable.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>internal/util/logger.go</path>
+        <kind>utility</kind>
+        <symbol>GlobalLogger, Info(), Warn(), Error(), Debug()</symbol>
+        <lines>1-90</lines>
+        <reason>Structured JSON logger using slog, already implemented in Story 1.8. Use util.Info(), util.Warn(), util.Error() for all API logging. Configured via LOG_LEVEL env var.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/db/connection.go</path>
+        <kind>database</kind>
+        <symbol>Pool, NewPool(), HealthCheck()</symbol>
+        <lines>1-90</lines>
+        <reason>PostgreSQL connection pool wrapper using pgx. Provides NewPool() for initialization, HealthCheck() for health endpoint. Configure with separate pool for API (max 10 connections vs indexer's higher limit).</reason>
+      </artifact>
+      <artifact>
+        <path>internal/db/config.go</path>
+        <kind>configuration</kind>
+        <symbol>Config struct</symbol>
+        <lines>N/A</lines>
+        <reason>Database configuration struct with Host, Port, Database, User, Password, MaxConns, IdleTimeout, ConnLifetime. Reuse this for API server database connection configuration.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/util/metrics.go</path>
+        <kind>metrics</kind>
+        <symbol>Prometheus metrics initialization</symbol>
+        <lines>N/A</lines>
+        <reason>Existing Prometheus metrics setup from Story 1.7. Reference patterns for creating API-specific metrics (counter for requests, histogram for latency). Use promhttp.Handler() for /metrics endpoint.</reason>
+      </artifact>
+      <artifact>
+        <path>cmd/worker/main.go</path>
+        <kind>entry-point</kind>
+        <symbol>main()</symbol>
+        <lines>N/A</lines>
+        <reason>Example entry point showing configuration loading, database connection initialization, graceful shutdown handling. Use similar patterns in cmd/api/main.go.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <go>
+        <package name="github.com/go-chi/chi/v5" version="v5.x" reason="HTTP router for API endpoints, middleware support"/>
+        <package name="github.com/jackc/pgx/v5" version="v5.7.6" reason="PostgreSQL driver with connection pooling (pgxpool)"/>
+        <package name="github.com/prometheus/client_golang" version="v1.19.0" reason="Prometheus metrics client, promhttp.Handler() for /metrics"/>
+        <package name="github.com/gorilla/websocket" version="v1.4.2" reason="WebSocket support (for Story 2.2, not this story)"/>
+        <package name="github.com/stretchr/testify" version="v1.10.0" reason="Test assertions and mocking for unit/integration tests"/>
+        <package name="log/slog" version="stdlib" reason="Structured logging (via internal/util/logger.go)"/>
+        <package name="net/http" version="stdlib" reason="HTTP server and request/response handling"/>
+        <package name="encoding/json" version="stdlib" reason="JSON marshaling for API responses"/>
+        <package name="context" version="stdlib" reason="Request context and timeout management"/>
+      </go>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint>Layered Architecture: API handlers must NOT contain business logic. All database queries go through internal/store/pg/ abstraction layer.</constraint>
+    <constraint>Dependency Injection: Server struct holds all dependencies (db pool, logger, config). No global state except logger.</constraint>
+    <constraint>Error Handling: All errors logged with structured logger. Return generic error messages to client (no internal details). Use standard HTTP status codes (400, 404, 500, 503).</constraint>
+    <constraint>Configuration: All configuration via environment variables (API_PORT, DB_*, LOG_LEVEL, API_CORS_ORIGINS). No hardcoded values.</constraint>
+    <constraint>Database Access: Read-only queries for API. No INSERT/UPDATE/DELETE operations (indexer worker handles writes). Use separate connection pool (max 10 connections).</constraint>
+    <constraint>Pagination: Default limits per endpoint (blocks=25, txs=50, logs=100). Enforce maximum limits (blocks=100, txs=100, logs=1000). Reject invalid pagination parameters with 400.</constraint>
+    <constraint>Performance: p95 latency &lt;150ms for all endpoints. Use composite indexes for queries. Measure latency in middleware and expose via Prometheus.</constraint>
+    <constraint>Input Validation: Validate all user inputs (pagination, addresses, hashes). Return 400 with structured error for invalid inputs.</constraint>
+    <constraint>Logging: Use util.Info(), util.Warn(), util.Error() for all logging. Log all requests with method, path, status, latency. Log errors with full context.</constraint>
+    <constraint>Testing: Unit test coverage &gt;70%. Mock database for unit tests. Integration tests with test database for end-to-end validation.</constraint>
+    <constraint>CORS: Configurable CORS origins via API_CORS_ORIGINS environment variable. Default to * for demo/portfolio.</constraint>
+    <constraint>Graceful Shutdown: Handle SIGINT/SIGTERM signals. Drain in-flight requests before shutdown. Close database connections cleanly.</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>GET /v1/blocks</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /v1/blocks?limit={n}&amp;offset={m} → {blocks: [], total: int, limit: int, offset: int}</signature>
+      <path>internal/api/handlers.go or internal/api/handlers/blocks.go</path>
+    </interface>
+    <interface>
+      <name>GET /v1/blocks/{height}</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /v1/blocks/{height:int} → {height, hash, parent_hash, miner, gas_used, gas_limit, timestamp, tx_count, orphaned}</signature>
+      <path>internal/api/handlers/blocks.go</path>
+    </interface>
+    <interface>
+      <name>GET /v1/txs/{hash}</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /v1/txs/{hash:hex} → {hash, block_height, tx_index, from_addr, to_addr, value_wei, fee_wei, gas_used, gas_price, nonce, success}</signature>
+      <path>internal/api/handlers/txs.go</path>
+    </interface>
+    <interface>
+      <name>GET /v1/address/{addr}/txs</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /v1/address/{addr:hex}/txs?limit={n}&amp;offset={m} → {address, transactions: [], total, limit, offset}</signature>
+      <path>internal/api/handlers/address.go</path>
+    </interface>
+    <interface>
+      <name>GET /v1/logs</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /v1/logs?address={addr}&amp;topic0={topic}&amp;limit={n}&amp;offset={m} → {logs: [], total, limit, offset}</signature>
+      <path>internal/api/handlers/logs.go</path>
+    </interface>
+    <interface>
+      <name>GET /v1/stats/chain</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /v1/stats/chain → {latest_block, total_blocks, total_transactions, indexer_lag_blocks, indexer_lag_seconds, last_updated}</signature>
+      <path>internal/api/handlers/stats.go</path>
+    </interface>
+    <interface>
+      <name>GET /health</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /health → {status, database, indexer_last_block, indexer_last_updated, indexer_lag_seconds, version} (200 or 503)</signature>
+      <path>internal/api/handlers/health.go</path>
+    </interface>
+    <interface>
+      <name>GET /metrics</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /metrics → Prometheus text format metrics</signature>
+      <path>internal/api/server.go (uses promhttp.Handler())</path>
+    </interface>
+    <interface>
+      <name>Server struct</name>
+      <kind>Go struct</kind>
+      <signature>type Server struct { pool *db.Pool, config *Config }</signature>
+      <path>internal/api/server.go</path>
+    </interface>
+    <interface>
+      <name>NewServer()</name>
+      <kind>Go constructor</kind>
+      <signature>func NewServer(pool *db.Pool, config *Config) *Server</signature>
+      <path>internal/api/server.go</path>
+    </interface>
+    <interface>
+      <name>Router()</name>
+      <kind>Go method</kind>
+      <signature>func (s *Server) Router() http.Handler</signature>
+      <path>internal/api/server.go</path>
+    </interface>
+    <interface>
+      <name>parsePagination()</name>
+      <kind>Go utility function</kind>
+      <signature>func parsePagination(r *http.Request, defaultLimit, maxLimit int) (limit, offset int)</signature>
+      <path>internal/api/pagination.go</path>
+    </interface>
+    <interface>
+      <name>writeJSON()</name>
+      <kind>Go utility function</kind>
+      <signature>func writeJSON(w http.ResponseWriter, statusCode int, data interface{})</signature>
+      <path>internal/api/errors.go</path>
+    </interface>
+    <interface>
+      <name>handleError()</name>
+      <kind>Go utility function</kind>
+      <signature>func handleError(w http.ResponseWriter, err error, statusCode int)</signature>
+      <path>internal/api/errors.go</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>Unit tests use testify for assertions. Mock database using testify/mock or pgx test helpers. Integration tests use real PostgreSQL test database with setup/teardown. Performance tests measure p95 latency under load. Test coverage target &gt;70% for all handlers and utilities. Follow table-driven test pattern for multiple input scenarios.</standards>
+    <locations>
+      internal/api/*_test.go (unit tests for handlers, middleware, utilities)
+      internal/api/integration_test.go (integration tests with test database)
+    </locations>
+    <ideas>
+      <idea ac="AC1">Test server initialization, router configuration, middleware execution order, graceful shutdown</idea>
+      <idea ac="AC2">Test block query handlers: success cases (list, by height, by hash), 404 for not found, pagination correctness, orphaned flag filtering</idea>
+      <idea ac="AC3">Test transaction query handler: success case, 404 for not found, invalid hash format (400)</idea>
+      <idea ac="AC4">Test address transaction history: success case with pagination, invalid address format (400), empty result set, pagination edge cases</idea>
+      <idea ac="AC5">Test event log filtering: success with various filter combinations (address only, topic0 only, both), pagination, empty results</idea>
+      <idea ac="AC6">Test chain statistics: success case, database query execution, lag calculation</idea>
+      <idea ac="AC7">Test health check: healthy state (200), unhealthy state when database down (503), health check query execution</idea>
+      <idea ac="AC8">Test metrics endpoint: metrics exposure, counter incrementation, histogram recording, promhttp handler</idea>
+      <idea ac="AC9">Test input validation: invalid pagination (negative offset, zero limit, excessive limit), invalid addresses (wrong length, non-hex), invalid hashes</idea>
+      <idea ac="AC10">Test CORS middleware: preflight requests, origin validation, configurable origins</idea>
+      <idea ac="AC11">Performance tests: load test with 100 concurrent requests, measure p95 latency per endpoint, verify indexes used (EXPLAIN ANALYZE)</idea>
+      <idea ac="AC12">Test logging: verify request logs, error logs with context, startup logs, log format (JSON with structured fields)</idea>
+    </ideas>
+  </tests>
+</story-context>
