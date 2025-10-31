@@ -1,0 +1,308 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>1.5</storyId>
+    <title>Chain Reorganization Detection and Recovery</title>
+    <status>drafted</status>
+    <generatedAt>2025-10-30</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-5-chain-reorganization-detection-and-recovery.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain indexer system</asA>
+    <iWant>automatic detection and recovery from chain reorganizations (reorgs) up to 6 blocks deep</iWant>
+    <soThat>I maintain data integrity by marking orphaned blocks and re-indexing the canonical chain from the fork point</soThat>
+    <tasks>
+      - Task 1: Design reorg handler architecture (AC: #1, #5) [5 subtasks]
+      - Task 2: Implement reorg detection (AC: #1) [6 subtasks]
+      - Task 3: Implement fork point discovery (AC: #2) [7 subtasks]
+      - Task 4: Implement orphaned block marking (AC: #3) [7 subtasks]
+      - Task 5: Integrate with live-tail for canonical re-indexing (AC: #4) [5 subtasks]
+      - Task 6: Add configuration and metrics (AC: #5) [5 subtasks]
+      - Task 7: Write comprehensive tests (AC: #1-#5) [9 subtasks]
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" priority="critical">
+      <title>Reorg Detection</title>
+      <description>
+        - Detects reorg when new block's parent_hash doesn't match database head hash
+        - Triggered by live-tail coordinator during sequential block processing
+        - Logs reorg detection event with structured context (height, expected parent, actual parent)
+        - Returns error to live-tail if reorg depth exceeds maximum (default: 6 blocks)
+      </description>
+    </criterion>
+    <criterion id="AC2" priority="critical">
+      <title>Fork Point Discovery</title>
+      <description>
+        - Walks backwards from current database head to find common ancestor block
+        - Compares block hashes at each height between database and blockchain
+        - Stops when hashes match (fork point found)
+        - Limits search depth to configurable maximum (default: 6 blocks)
+        - Returns error if fork point not found within depth limit
+      </description>
+    </criterion>
+    <criterion id="AC3" priority="critical">
+      <title>Orphaned Block Marking</title>
+      <description>
+        - Marks all blocks from fork point + 1 to current database head as orphaned
+        - Updates `orphaned` flag to TRUE without deleting blocks (soft delete pattern)
+        - Uses database transaction to ensure atomicity
+        - Preserves orphaned blocks and their transactions for audit trail
+        - Foreign key cascade behavior maintains referential integrity
+      </description>
+    </criterion>
+    <criterion id="AC4" priority="high">
+      <title>Canonical Chain Re-indexing</title>
+      <description>
+        - After marking orphaned blocks, live-tail resumes normal processing
+        - Fetches and indexes canonical blocks from fork point + 1 forward
+        - Inserts canonical blocks with orphaned=false
+        - Maintains sequential processing (one block at a time)
+        - Reorg recovery completes when database head matches network head
+      </description>
+    </criterion>
+    <criterion id="AC5" priority="high">
+      <title>Configuration and Observability</title>
+      <description>
+        - Maximum reorg depth configurable via `REORG_MAX_DEPTH` environment variable (default: 6)
+        - Structured logging for: reorg detected, fork point found, blocks marked orphaned, recovery complete
+        - Metrics: reorg_detected_total counter, reorg_depth gauge, orphaned_blocks_total counter
+        - Reorg depth and impacted block range included in all log events
+      </description>
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Technical Specification - Epic 1</title>
+        <section>Story 1.5: Chain Reorganization Detection and Recovery</section>
+        <snippet>Implements automatic reorg detection when new block's parent_hash doesn't match DB head. Walks backwards to find fork point, marks orphaned blocks (soft delete), handles up to 6 blocks deep. Uses database transactions for atomicity.</snippet>
+      </doc>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Technical Specification - Epic 1</title>
+        <section>Data Integrity Rules</section>
+        <snippet>Foreign key constraints: transactions.block_height → blocks(height) ON DELETE CASCADE. Orphaned flag query: SELECT * FROM blocks WHERE orphaned = false (canonical chain). Soft delete preserves audit trail.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture</title>
+        <section>Reorg Handler Component</section>
+        <snippet>Reorg Handler interfaces with RPC client to fetch blockchain hashes, storage layer to mark orphaned blocks via UPDATE statement, and live-tail coordinator for detection trigger. Implements backwards walk algorithm to find common ancestor.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>FR003: Chain Reorganization Handling</section>
+        <snippet>System must automatically detect chain reorganizations up to 6 blocks deep by comparing parent hashes, mark orphaned blocks (set orphaned flag), and re-process the canonical chain from the fork point forward.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epic-stories.md</path>
+        <title>Epic Stories Breakdown</title>
+        <section>Story 1.5: Chain Reorganization Detection and Recovery</section>
+        <snippet>Key capabilities: Detect reorg via parent hash mismatch, walk backwards to find common ancestor, mark orphaned blocks atomically, re-process canonical chain from fork point. Handles reorgs up to 6 blocks without issues.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>internal/index/livetail.go</path>
+        <kind>coordinator</kind>
+        <symbol>LiveTailCoordinator</symbol>
+        <lines>166-184</lines>
+        <reason>Detects parent hash mismatch and triggers ReorgHandler.HandleReorg(). Integration point already implemented - calls reorg handler when parent hash doesn't match database head hash.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/index/livetail.go</path>
+        <kind>interface</kind>
+        <symbol>ReorgHandler</symbol>
+        <lines>44-47</lines>
+        <reason>Interface stub that Story 1.5 must implement. Defines HandleReorg(ctx, block) method signature. Current stub is no-op; real implementation needed.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/index/livetail.go</path>
+        <kind>interface</kind>
+        <symbol>BlockStore</symbol>
+        <lines>32-37</lines>
+        <reason>Storage interface with GetBlockByHeight() method for querying database blocks during fork point discovery. Needs extension with MarkBlocksOrphaned() method.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/index/backfill.go</path>
+        <kind>interface</kind>
+        <symbol>RPCBlockFetcher</symbol>
+        <lines>14-16</lines>
+        <reason>Interface for fetching blocks from blockchain via GetBlockByNumber(). Used during fork point discovery to fetch blockchain block hashes for comparison with database.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/rpc/client.go</path>
+        <kind>client</kind>
+        <symbol>Client.GetBlockByNumber</symbol>
+        <lines>62-138</lines>
+        <reason>RPC client implementation with automatic retry logic and error handling. Returns *types.Block from go-ethereum. Used by ReorgHandler to fetch blockchain block hashes.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/db/connection.go</path>
+        <kind>database</kind>
+        <symbol>Pool</symbol>
+        <lines>1-50</lines>
+        <reason>Database connection pool using pgx. Provides Exec() and Query() methods for executing UPDATE statements to mark blocks as orphaned. Supports transactions for atomicity.</reason>
+      </artifact>
+      <artifact>
+        <path>migrations/000001_initial_schema.up.sql</path>
+        <kind>schema</kind>
+        <symbol>blocks table</symbol>
+        <lines>2-14</lines>
+        <reason>Defines blocks table with 'orphaned BOOLEAN NOT NULL DEFAULT FALSE' field (line 11). Soft delete pattern for reorg handling. Foreign key CASCADE behavior for transactions.</reason>
+      </artifact>
+      <artifact>
+        <path>migrations/000002_add_indexes.up.sql</path>
+        <kind>index</kind>
+        <symbol>idx_blocks_orphaned_height</symbol>
+        <lines>2</lines>
+        <reason>Composite index on (orphaned, height DESC) optimizes queries for canonical chain (orphaned=false) and height-based lookups during fork point discovery.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <go>
+        <package name="github.com/ethereum/go-ethereum" version="v1.16.5">RPC client, types.Block, block header types</package>
+        <package name="github.com/jackc/pgx/v5" version="v5.7.6">PostgreSQL driver for database transactions and UPDATE statements</package>
+        <package name="github.com/prometheus/client_golang" version="v1.19.0">Metrics collection (reorg_detected_total, reorg_depth, orphaned_blocks_total)</package>
+        <package name="github.com/stretchr/testify" version="v1.10.0">Testing framework for mocks and assertions</package>
+        <package name="log/slog" version="stdlib">Structured JSON logging for reorg events</package>
+        <package name="context" version="stdlib">Context propagation for cancellation and timeouts</package>
+        <package name="sync/atomic" version="stdlib">Thread-safe metrics collection without locks</package>
+      </go>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint type="architecture">
+      <description>ReorgHandler must be implemented in internal/index/ package alongside backfill and live-tail coordinators. Maintains clean separation of concerns within indexing layer.</description>
+    </constraint>
+    <constraint type="interface">
+      <description>Must implement ReorgHandler interface defined in internal/index/livetail.go:44-47 with signature: HandleReorg(ctx context.Context, block *Block) error</description>
+    </constraint>
+    <constraint type="database">
+      <description>Use database transactions (pgx.Tx) for atomic UPDATE of orphaned blocks. Execute single UPDATE statement: UPDATE blocks SET orphaned = true WHERE height &gt;= $1 AND height &lt;= $2</description>
+    </constraint>
+    <constraint type="concurrency">
+      <description>ReorgHandler called synchronously from live-tail coordinator. No goroutines needed. Context cancellation must be supported for graceful shutdown.</description>
+    </constraint>
+    <constraint type="error-handling">
+      <description>Return error to live-tail if: (1) reorg depth exceeds maxDepth, (2) fork point not found, (3) database transaction fails. Log ERROR with context for manual intervention.</description>
+    </constraint>
+    <constraint type="logging">
+      <description>Use structured JSON logging (log/slog) with fields: height, depth, fork_point, expected_parent, actual_parent, block_range. Follow same pattern as live-tail coordinator.</description>
+    </constraint>
+    <constraint type="metrics">
+      <description>Collect Prometheus metrics atomically: reorg_detected_total (counter), reorg_depth (gauge), orphaned_blocks_total (counter). Use atomic.AddUint64/StoreUint64 for thread safety.</description>
+    </constraint>
+    <constraint type="testing">
+      <description>Target &gt;70% test coverage. Use table-driven tests. Mock RPCBlockFetcher and BlockStore interfaces. Test: reorg detection, fork point discovery (3/6 blocks), depth exceeded (7+ blocks), orphaned block marking, configuration.</description>
+    </constraint>
+    <constraint type="soft-delete">
+      <description>NEVER delete orphaned blocks from database. Set orphaned=true flag only. Preserves audit trail and enables forensic analysis. Canonical chain queries use WHERE orphaned = false filter.</description>
+    </constraint>
+    <constraint type="configuration">
+      <description>Load REORG_MAX_DEPTH from environment variable with default value 6. Follow same config pattern as live-tail (LIVETAIL_POLL_INTERVAL). Create internal/index/reorg_config.go for config management.</description>
+    </constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>ReorgHandler.HandleReorg</name>
+      <kind>Go interface method</kind>
+      <signature>HandleReorg(ctx context.Context, block *Block) error</signature>
+      <path>internal/index/livetail.go:44-47</path>
+      <description>Main entry point for reorg handling. Called by live-tail coordinator when parent hash mismatch detected. Must return error if reorg cannot be handled automatically.</description>
+    </interface>
+    <interface>
+      <name>RPCBlockFetcher.GetBlockByNumber</name>
+      <kind>Go interface method</kind>
+      <signature>GetBlockByNumber(ctx context.Context, height uint64) (*types.Block, error)</signature>
+      <path>internal/index/backfill.go:14-16</path>
+      <description>Fetches blockchain block by height. Used during fork point discovery to retrieve blockchain block hashes for comparison with database. Includes automatic retry logic.</description>
+    </interface>
+    <interface>
+      <name>BlockStore.GetBlockByHeight</name>
+      <kind>Go interface method</kind>
+      <signature>GetBlockByHeight(ctx context.Context, height uint64) (*Block, error)</signature>
+      <path>internal/index/livetail.go:32-37</path>
+      <description>Queries database for block at specific height. Used during fork point discovery to retrieve database block hashes for comparison with blockchain. Returns error if block not found.</description>
+    </interface>
+    <interface>
+      <name>BlockStore.MarkBlocksOrphaned (NEW)</name>
+      <kind>Go interface method - NEEDS IMPLEMENTATION</kind>
+      <signature>MarkBlocksOrphaned(ctx context.Context, startHeight, endHeight uint64) error</signature>
+      <path>NONE - must be added to BlockStore interface</path>
+      <description>Marks blocks in height range [startHeight, endHeight] as orphaned via UPDATE statement. Uses database transaction for atomicity. Returns error if transaction fails.</description>
+    </interface>
+    <interface>
+      <name>BlockStore.GetLatestBlock</name>
+      <kind>Go interface method</kind>
+      <signature>GetLatestBlock(ctx context.Context) (*Block, error)</signature>
+      <path>internal/index/livetail.go:32-37</path>
+      <description>Queries database for current head block (highest non-orphaned block). Used to determine reorg depth and calculate range of blocks to mark orphaned.</description>
+    </interface>
+    <interface>
+      <name>SQL UPDATE for orphaned blocks</name>
+      <kind>SQL statement</kind>
+      <signature>UPDATE blocks SET orphaned = true WHERE height &gt;= $1 AND height &lt;= $2</signature>
+      <path>migrations/000001_initial_schema.up.sql:11</path>
+      <description>Atomic UPDATE statement to mark blocks as orphaned. Executed within database transaction. Uses idx_blocks_orphaned_height index for efficient query execution.</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing follows Go standard library patterns with testify/assert for assertions and testify/require for fatal errors. Use table-driven tests for configuration validation. Mock interfaces (RPCBlockFetcher, BlockStore) with in-memory state. Test coverage target: &gt;70% for reorg package. Follow patterns from internal/index/livetail_test.go and internal/index/backfill_test.go. Use testify/mock for method call verification.
+    </standards>
+    <locations>
+      - internal/index/reorg_test.go (NEW - comprehensive test suite)
+      - internal/index/livetail_test.go (integration tests for reorg detection trigger)
+      - Test execution: go test ./internal/index/... -v -cover
+    </locations>
+    <ideas>
+      <test ac="AC1">
+        <description>Test reorg detection when parent hash mismatch</description>
+        <scenario>Mock BlockStore returns dbHead with hash A. Mock RPCBlockFetcher returns newBlock with parentHash B (mismatch). Call HandleReorg(). Verify error returned if depth &gt; maxDepth.</scenario>
+      </test>
+      <test ac="AC2">
+        <description>Test fork point discovery - 3 block reorg</description>
+        <scenario>Mock database blocks: heights 100,101,102 with hashes A,B,C. Mock blockchain blocks: heights 100,101,102 with hashes A,D,E. Fork point should be 100. Verify backwards walk stops at matching hash.</scenario>
+      </test>
+      <test ac="AC2">
+        <description>Test fork point discovery - max depth (6 blocks)</description>
+        <scenario>Mock 6-block reorg. Verify fork point found at height 94 (currentHead=100, fork=94). Verify HandleReorg succeeds.</scenario>
+      </test>
+      <test ac="AC2">
+        <description>Test fork point discovery - depth exceeded (7+ blocks)</description>
+        <scenario>Mock 7-block reorg. Verify HandleReorg returns error "reorg depth exceeds max depth". Verify no UPDATE statement executed.</scenario>
+      </test>
+      <test ac="AC3">
+        <description>Test orphaned block marking with transaction</description>
+        <scenario>Mock fork point = 97, currentHead = 100. Verify MarkBlocksOrphaned(97, 100) called. Mock successful transaction commit. Verify success.</scenario>
+      </test>
+      <test ac="AC3">
+        <description>Test transaction rollback on error</description>
+        <scenario>Mock MarkBlocksOrphaned() returns error. Verify HandleReorg returns error. Verify transaction rolled back (no blocks marked orphaned).</scenario>
+      </test>
+      <test ac="AC5">
+        <description>Test configuration loading from environment variable</description>
+        <scenario>Set REORG_MAX_DEPTH=10. Load config. Verify maxDepth=10. Unset env var. Load config. Verify default maxDepth=6.</scenario>
+      </test>
+      <test ac="AC5">
+        <description>Test metrics collection</description>
+        <scenario>Mock 3-block reorg. Call HandleReorg(). Verify metrics: reorg_detected_total=1, reorg_depth=3, orphaned_blocks_total=3.</scenario>
+      </test>
+      <test ac="AC1,AC2,AC3,AC4">
+        <description>End-to-end integration test</description>
+        <scenario>Mock live-tail detects parent hash mismatch. Trigger reorg handler. Mock fork point discovery (3 blocks). Mock orphaned block marking (success). Verify live-tail resumes normal processing. Verify canonical blocks re-indexed.</scenario>
+      </test>
+    </ideas>
+  </tests>
+</story-context>
