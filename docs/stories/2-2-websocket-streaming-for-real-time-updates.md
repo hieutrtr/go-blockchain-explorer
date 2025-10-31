@@ -1,6 +1,6 @@
 # Story 2.2: WebSocket Streaming for Real-Time Updates
 
-Status: review
+Status: done
 
 ## Story
 
@@ -426,6 +426,10 @@ util.Debug(msg, keyvals...)  // Debug logging
 ---
 
 ## Dev Agent Record
+
+### Completion Notes
+**Completed:** 2025-10-31
+**Definition of Done:** All acceptance criteria met, code reviewed, tests passing
 
 ### Context Reference
 

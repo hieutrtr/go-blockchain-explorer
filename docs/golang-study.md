@@ -1,8 +1,8 @@
 # Go Language Study Guide - Learn from Blockchain Explorer Project
 
-**Based on:** Story 1.1 (Ethereum RPC Client with Retry Logic)
+**Based on:** Story 1.1 (Ethereum RPC Client with Retry Logic) + Story 1.2 (PostgreSQL Schema & Migrations)
 **Project:** go-blockchain-explorer
-**Date:** 2025-10-30
+**Date:** 2025-10-30 (Updated with Story 1.2 concepts)
 
 This guide extracts Go concepts, patterns, and techniques from real production code in this project.
 
@@ -20,6 +20,10 @@ This guide extracts Go concepts, patterns, and techniques from real production c
 8. [Go Idioms & Best Practices](#go-idioms--best-practices)
 9. [Standard Library Usage](#standard-library-usage)
 10. [Third-Party Libraries](#third-party-libraries)
+11. [Database Connection Patterns (Story 1.2)](#database-connection-patterns-story-12)
+12. [Configuration Management & Validation](#configuration-management--validation)
+13. [Database Migrations Strategy](#database-migrations-strategy)
+14. [Connection Pooling & Resource Management](#connection-pooling--resource-management)
 
 ---
 
@@ -1424,24 +1428,359 @@ go doc fmt.Sprintf
 
 ---
 
+---
+
+## Database Connection Patterns (Story 1.2)
+
+### 1. Struct Composition for Resource Wrapping
+
+**Concept:** Wrap external library types in your own structs to add methods and control the interface.
+
+**Example from Story 1.2:**
+```go
+// internal/db/connection.go
+type Pool struct {
+    *pgxpool.Pool     // Embed external Pool type (anonymous field)
+    config *Config    // Add your own fields
+}
+
+// NewPool creates a new database connection pool
+func NewPool(ctx context.Context, config *Config) (*Pool, error) {
+    // ... setup code ...
+
+    pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+    if err != nil {
+        return nil, fmt.Errorf("failed to create connection pool: %w", err)
+    }
+
+    return &Pool{
+        Pool:   pool,
+        config: config,
+    }, nil
+}
+```
+
+**Key Concepts:**
+- **Anonymous Field Embedding:** `*pgxpool.Pool` is embedded without a field name
+- **Method Promotion:** Methods from embedded `*pgxpool.Pool` are automatically available on `Pool`
+- **Extended Functionality:** Can add custom methods like `Close()` and `HealthCheck()` that wrap or extend embedded methods
+- **Encapsulation:** Hide implementation details while exposing necessary API
+
+**Advantage over Inheritance (which Go doesn't have):**
+```go
+// You can call methods from pgxpool directly:
+pool.Ping(ctx)           // Promoted method from pgxpool.Pool
+pool.QueryRow(ctx, sql)  // Promoted method
+
+// But you can also override behavior:
+func (p *Pool) Close() {
+    if p.Pool != nil {
+        util.Info("closing database connection pool")
+        p.Pool.Close()  // Call embedded method
+    }
+}
+```
+
+### 2. Configuration Constructor with Validation
+
+**Concept:** Create constructors that read environment variables, validate, and provide defaults.
+
+**Example from Story 1.2:**
+```go
+// internal/db/config.go
+func NewConfig() (*Config, error) {
+    // Check required fields
+    name := os.Getenv("DB_NAME")
+    if name == "" {
+        return nil, fmt.Errorf("DB_NAME environment variable not set")
+    }
+
+    // Parse with validation
+    port := 5432
+    if portStr := os.Getenv("DB_PORT"); portStr != "" {
+        parsedPort, err := strconv.Atoi(portStr)
+        if err != nil {
+            return nil, fmt.Errorf("invalid DB_PORT value: %w", err)
+        }
+        if parsedPort < 1 || parsedPort > 65535 {
+            return nil, fmt.Errorf("DB_PORT must be between 1 and 65535, got %d", parsedPort)
+        }
+        port = parsedPort
+    }
+
+    return &Config{...}, nil
+}
+```
+
+**Key Patterns:**
+- **Required vs Optional Fields:** Distinguish between must-have and optional fields with defaults
+- **Type Conversion:** Use `strconv` package to convert string environment variables to typed values
+- **Validation in Constructor:** Fail early with clear error messages
+- **Error Wrapping:** Use `%w` to preserve original errors from parsing
+
+---
+
+## Configuration Management & Validation
+
+### 1. Safe String Methods for Logging
+
+**Problem:** Configuration often contains sensitive data (passwords, API keys) that shouldn't appear in logs.
+
+**Solution from Story 1.2:**
+```go
+type Config struct {
+    User     string
+    Password string
+    Host     string
+    Port     int
+    Name     string
+    MaxConns int
+}
+
+// ConnectionString includes password (for actual use)
+func (c *Config) ConnectionString() string {
+    return fmt.Sprintf(
+        "postgres://%s:%s@%s:%d/%s?sslmode=disable",
+        c.User,
+        c.Password,  // ⚠️ Contains secret
+        c.Host,
+        c.Port,
+        c.Name,
+    )
+}
+
+// SafeString masks password (safe for logging)
+func (c *Config) SafeString() string {
+    return fmt.Sprintf(
+        "postgres://%s:***@%s:%d/%s (maxConns=%d)",
+        c.User,
+        c.Host,       // No password
+        c.Port,
+        c.Name,
+        c.MaxConns,
+    )
+}
+
+// Usage in code:
+util.Info("connecting to database", "config", config.SafeString())  // ✅ Safe
+```
+
+**Key Concepts:**
+- **Dual Methods:** Provide both secure and unsecured string representations
+- **Clear Intent:** Name shows whether it's safe (`SafeString()`) or contains secrets
+- **Always Use Safe Version:** Always log with `SafeString()` unless you specifically need sensitive data in logs
+
+### 2. Type Conversion with Error Handling
+
+**Pattern for converting environment variable strings:**
+```go
+// Pattern: strconv for single value conversion
+maxConns := 20  // Default
+if maxConnsStr := os.Getenv("DB_MAX_CONNS"); maxConnsStr != "" {
+    parsedMaxConns, err := strconv.Atoi(maxConnsStr)
+    if err != nil {
+        return nil, fmt.Errorf("invalid DB_MAX_CONNS value: %w", err)
+    }
+    // Validate range
+    if parsedMaxConns < 1 {
+        return nil, fmt.Errorf("DB_MAX_CONNS must be at least 1, got %d", parsedMaxConns)
+    }
+    maxConns = parsedMaxConns
+}
+```
+
+**Common strconv functions:**
+```go
+strconv.Atoi(str)           // Convert to int, returns error if invalid
+strconv.ParseInt(str, 10, 64) // Parse with base and bit size
+strconv.ParseFloat(str, 64)  // Parse float64
+strconv.ParseBool(str)       // Parse boolean
+```
+
+---
+
+## Database Migrations Strategy
+
+### 1. The Defer + Close Pattern for Resources
+
+**Concept:** Resources that need cleanup use `defer` to guarantee cleanup happens.
+
+**Example from Story 1.2:**
+```go
+// internal/db/migrations.go
+func RunMigrations(config *Config, migrationsPath string) error {
+    // Create migrate instance
+    m, err := migrate.New(
+        fmt.Sprintf("file://%s", migrationsPath),
+        connString,
+    )
+    if err != nil {
+        return fmt.Errorf("failed to create migrate instance: %w", err)
+    }
+    defer m.Close()  // ← Guarantees cleanup even if error occurs
+
+    // Run migrations
+    if err := m.Up(); err != nil {
+        // Error occurs, but defer still runs m.Close()
+        return fmt.Errorf("failed to run migrations: %w", err)
+    }
+
+    return nil  // No error, defer still runs m.Close()
+}
+```
+
+**Why defer is better than try-catch:**
+- Works with panic (try-catch would not)
+- Cleanup happens in reverse order if multiple defers
+- Simpler syntax than try-finally in other languages
+- Impossible to forget if you defer immediately after acquiring resource
+
+### 2. Checking for No-Change Errors
+
+**Pattern: Some operations have special "no-change" outcomes that aren't failures.**
+
+```go
+// internal/db/migrations.go
+if err := m.Up(); err != nil {
+    // Special case: no migrations to apply is not an error
+    if errors.Is(err, migrate.ErrNoChange) {
+        util.Info("database schema is up to date, no migrations needed")
+        return nil  // Success: nothing needed to be done
+    }
+    return fmt.Errorf("failed to run migrations: %w", err)
+}
+```
+
+**Key Pattern:**
+- Check for sentinel errors using `errors.Is()`
+- "No change" is often a valid outcome, not an error condition
+- Log at INFO level (not ERROR) for these non-error states
+
+### 3. Getting State After Operations
+
+**Pattern: Query state after successful operation to confirm and log.**
+
+```go
+// After successful migration, get version info
+version, dirty, err := m.Version()
+if err != nil {
+    // Log as WARN (non-critical info)
+    util.Warn("failed to get migration version after successful migration",
+        "error", err.Error())
+} else {
+    // Log successful state
+    util.Info("migrations completed successfully",
+        "version", version,
+        "dirty", dirty)
+}
+```
+
+**Key Concepts:**
+- **Dirty Flag:** Indicates incomplete migration (should be false after successful run)
+- **Version Number:** Track which migration version is active
+- **Non-Critical Errors:** If getting version fails after successful operation, log as WARN not ERROR
+
+---
+
+## Connection Pooling & Resource Management
+
+### 1. Configuring Connection Pool Parameters
+
+**Concept from Story 1.2:**
+```go
+// Configure connection pool settings
+poolConfig.MaxConns = int32(config.MaxConns)              // Max concurrent connections
+poolConfig.MaxConnIdleTime = config.IdleTimeout           // 5 minutes
+poolConfig.MaxConnLifetime = config.ConnLifetime          // 30 minutes
+poolConfig.HealthCheckPeriod = 1 * config.ConnTimeout   // Periodic health checks
+```
+
+**Key Parameters Explained:**
+- **MaxConns:** Maximum number of connections allowed (limits concurrent queries)
+- **MaxConnIdleTime:** How long a connection can sit unused before being closed
+- **MaxConnLifetime:** Maximum time a connection can exist (prevents stale connections)
+- **HealthCheckPeriod:** How often pool checks if connections are still valid
+
+**Why These Matter:**
+- Too few connections → Queries wait for available connection
+- Too many connections → Database server overwhelmed, memory usage high
+- Idle timeout too short → Frequent reconnection overhead
+- No health checks → Stale/broken connections remain in pool
+
+### 2. Context-Based Timeout for Initialization
+
+**Pattern: Use context timeouts for resource acquisition.**
+
+```go
+// internal/db/connection.go
+// Create connection pool with timeout
+ctx, cancel := context.WithTimeout(ctx, config.ConnTimeout)
+defer cancel()
+
+pool, err := pgxpool.NewWithConfig(ctx, poolConfig)
+if err != nil {
+    return nil, fmt.Errorf("failed to create connection pool: %w", err)
+}
+
+// Verify connection with ping
+if err := pool.Ping(ctx); err != nil {
+    pool.Close()  // Clean up on failure
+    return nil, fmt.Errorf("failed to ping database: %w", err)
+}
+```
+
+**Key Pattern:**
+- Don't hang forever if database is unreachable
+- Close partially-created resources on failure (pool.Close())
+- Use same context with timeout for verification (ping)
+
+### 3. Health Check Pattern
+
+**Pattern: Provide way to verify resource is still healthy.**
+
+```go
+// HealthCheck performs a health check on the database connection
+func (p *Pool) HealthCheck(ctx context.Context) error {
+    ctx, cancel := context.WithTimeout(ctx, p.config.ConnTimeout)
+    defer cancel()
+
+    if err := p.Ping(ctx); err != nil {
+        return fmt.Errorf("database health check failed: %w", err)
+    }
+
+    return nil
+}
+
+// Usage: Can be called periodically to verify database is still accessible
+```
+
+**When Used:**
+- Before returning response in HTTP handlers
+- In liveness probes (Kubernetes, Docker health checks)
+- Periodically in background goroutines
+
+---
+
 ## Project-Specific Learning Path
 
 Based on this project's stories, here's a suggested learning order:
 
-1. **Story 1.1 (RPC Client)** ← You are here
+1. **Story 1.1 (RPC Client)** ← Foundation
    - ✅ Structs, methods, interfaces
    - ✅ Error handling and wrapping
    - ✅ Context and cancellation
    - ✅ Structured logging
    - ✅ Testing patterns
 
-2. **Story 1.2 (Database)** ← Just completed
-   - Database connections
-   - SQL migrations
-   - Connection pooling
-   - Integration testing
+2. **Story 1.2 (Database)** ← Structure & Resources
+   - ✅ Struct composition and embedding
+   - ✅ Configuration management
+   - ✅ Database migrations with golang-migrate
+   - ✅ Connection pooling
+   - ✅ Resource lifecycle (defer, Close)
+   - ✅ Integration testing with real database
 
-3. **Story 1.3 (Backfill Workers)** ← Next
+3. **Story 1.3 (Backfill Workers)** ← Concurrency Basics
    - Goroutines and channels
    - Worker pool pattern
    - Synchronization (sync.WaitGroup)

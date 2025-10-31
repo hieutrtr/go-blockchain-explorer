@@ -1,6 +1,6 @@
 # Story 1.2: PostgreSQL Schema and Migrations
 
-Status: review
+Status: done
 
 ## Story
 
@@ -283,6 +283,9 @@ DB_MAX_CONNS=20
 - All 30+ unit and integration tests pass
 
 ### Completion Notes
+
+**Completed:** 2025-10-31
+**Definition of Done:** All acceptance criteria met, code reviewed and approved, tests passing with 74.6% coverage
 
 **All Acceptance Criteria Met:**
 - ✅ AC1: Core schema with blocks, transactions, logs tables with all go-ethereum fields captured
