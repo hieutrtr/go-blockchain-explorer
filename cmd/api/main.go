@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/hieutt50/go-blockchain-explorer/internal/api"
+	"github.com/hieutt50/go-blockchain-explorer/internal/api/websocket"
 	"github.com/hieutt50/go-blockchain-explorer/internal/db"
 	"github.com/hieutt50/go-blockchain-explorer/internal/util"
 )
@@ -47,9 +48,23 @@ func main() {
 		"max_conns", dbConfig.MaxConns,
 	)
 
-	// Create API server
-	server := api.NewServer(pool, apiConfig)
-	util.Info("API server initialized")
+	// Initialize WebSocket Hub for real-time streaming (Story 2.2)
+	wsConfig := websocket.LoadConfig()
+	hub := websocket.NewHub(wsConfig)
+	util.Info("WebSocket hub initialized",
+		"max_connections", wsConfig.MaxConnections,
+		"ping_interval", wsConfig.PingInterval,
+	)
+
+	// Start WebSocket Hub in background with cancellable context
+	hubCtx, hubCancel := context.WithCancel(context.Background())
+	defer hubCancel() // Ensure hub is stopped on exit
+	go hub.Run(hubCtx)
+	util.Info("WebSocket hub started")
+
+	// Create API server with WebSocket hub
+	server := api.NewServerWithHub(pool, apiConfig, hub)
+	util.Info("API server initialized with WebSocket support")
 
 	// Create HTTP server with timeouts
 	httpServer := &http.Server{
@@ -88,6 +103,10 @@ func main() {
 	util.Info("shutting down API server gracefully",
 		"timeout_seconds", apiConfig.ShutdownTimeout.Seconds(),
 	)
+
+	// Stop WebSocket Hub first (closes all client connections)
+	hubCancel()
+	util.Info("WebSocket hub shutdown initiated")
 
 	shutdownCtx, cancel := context.WithTimeout(context.Background(), apiConfig.ShutdownTimeout)
 	defer cancel()

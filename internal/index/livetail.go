@@ -11,12 +11,35 @@ import (
 	"github.com/ethereum/go-ethereum/core/types"
 )
 
+// WebSocketBroadcaster interface for broadcasting to WebSocket clients
+type WebSocketBroadcaster interface {
+	BroadcastBlock(block BlockData)
+	BroadcastTransaction(tx TransactionData)
+}
+
+// BlockData represents minimal block data for broadcasting
+type BlockData struct {
+	Height    uint64
+	Hash      string
+	TxCount   int
+	Timestamp int64
+	Miner     string
+	GasUsed   uint64
+}
+
+// TransactionData represents minimal transaction data for broadcasting
+type TransactionData struct {
+	Hash        string
+	BlockHeight uint64
+}
+
 // LiveTailCoordinator manages sequential live-tail processing of new blocks
 type LiveTailCoordinator struct {
 	rpcClient    RPCBlockFetcher
 	store        BlockStore
 	ingester     BlockIngester
 	reorgHandler ReorgHandler
+	hub          WebSocketBroadcaster // Optional WebSocket hub for real-time broadcasts
 	config       *LiveTailConfig
 	logger       *slog.Logger
 
@@ -52,6 +75,9 @@ type Block struct {
 	Hash       []byte
 	ParentHash []byte
 	Timestamp  uint64
+	Miner      []byte // Coinbase address
+	GasUsed    uint64
+	TxCount    int
 }
 
 // NewLiveTailCoordinator creates a new live-tail coordinator
@@ -60,6 +86,7 @@ func NewLiveTailCoordinator(
 	store BlockStore,
 	ingester BlockIngester,
 	reorgHandler ReorgHandler,
+	hub WebSocketBroadcaster, // Optional: can be nil
 	config *LiveTailConfig,
 ) (*LiveTailCoordinator, error) {
 	if rpcClient == nil {
@@ -84,6 +111,7 @@ func NewLiveTailCoordinator(
 		store:        store,
 		ingester:     ingester,
 		reorgHandler: reorgHandler,
+		hub:          hub, // Optional WebSocket broadcaster
 		config:       config,
 		logger:       logger,
 	}
@@ -188,6 +216,18 @@ func (ltc *LiveTailCoordinator) processNextBlock(ctx context.Context) error {
 		return fmt.Errorf("failed to insert block %d: %w", nextHeight, err)
 	}
 
+	// Broadcast block to WebSocket clients (Story 2.2)
+	if ltc.hub != nil {
+		ltc.hub.BroadcastBlock(BlockData{
+			Height:    domainBlock.Height,
+			Hash:      fmt.Sprintf("0x%x", domainBlock.Hash),
+			TxCount:   domainBlock.TxCount,
+			Timestamp: int64(domainBlock.Timestamp),
+			Miner:     fmt.Sprintf("0x%x", domainBlock.Miner),
+			GasUsed:   domainBlock.GasUsed,
+		})
+	}
+
 	// AC5: Update metrics
 	atomic.AddInt64(&ltc.blocksProcessed, 1)
 	atomic.StoreInt64(&ltc.currentHeight, int64(nextHeight))
@@ -211,6 +251,9 @@ func (ltc *LiveTailCoordinator) defaultParseRPCBlock(rpcBlock *types.Block, heig
 		Hash:       rpcBlock.Hash().Bytes(),
 		ParentHash: rpcBlock.ParentHash().Bytes(),
 		Timestamp:  rpcBlock.Time(),
+		Miner:      rpcBlock.Coinbase().Bytes(),
+		GasUsed:    rpcBlock.GasUsed(),
+		TxCount:    len(rpcBlock.Transactions()),
 	}
 }
 

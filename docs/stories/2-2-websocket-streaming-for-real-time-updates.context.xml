@@ -1,0 +1,213 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>2.2</storyId>
+    <title>WebSocket Streaming for Real-Time Updates</title>
+    <status>drafted</status>
+    <generatedAt>2025-10-31</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/2-2-websocket-streaming-for-real-time-updates.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain data consumer (frontend application, monitoring dashboard, or data subscriber)</asA>
+    <iWant>a WebSocket streaming endpoint that broadcasts real-time updates for new blocks and transactions as they are indexed</iWant>
+    <soThat>I can receive live blockchain data with sub-second delivery latency without continuous polling of REST endpoints</soThat>
+    <tasks>
+      - Task 1: Design WebSocket Hub architecture (AC: #2, #8)
+      - Task 2: Implement WebSocket Hub (AC: #2, #8)
+      - Task 3: Implement WebSocket Client (AC: #2, #3, #6, #7)
+      - Task 4: Implement WebSocket HTTP handler (AC: #1, #11)
+      - Task 5: Implement broadcast methods (AC: #4, #5, #8)
+      - Task 6: Integrate with Live-Tail Coordinator (AC: #9)
+      - Task 7: Register WebSocket endpoint in API server (AC: #1)
+      - Task 8: Add configuration support (AC: #12)
+      - Task 9: Add Prometheus metrics (AC: #10)
+      - Task 10: Write comprehensive tests (AC: #1-#12)
+      - Task 11: Create frontend WebSocket client (AC: #1, #3)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    - AC1: WebSocket Server Setup and Endpoint - WebSocket endpoint at /v1/stream, gorilla/websocket upgrader, CORS, 100+ concurrent connections, graceful shutdown
+    - AC2: Hub and Client Management - Hub manages connections in memory, dedicated goroutine, thread-safe register/unregister, client cleanup
+    - AC3: Subscribe/Unsubscribe Protocol - JSON control messages for subscribe/unsubscribe, channel filtering, error handling for invalid messages
+    - AC4: New Block Broadcasting - Broadcast to newBlocks subscribers, full block data in message, non-blocking, within 100ms
+    - AC5: New Transaction Broadcasting - Broadcast to newTxs subscribers, transaction data, batch support, within 200ms
+    - AC6: Connection Health and Ping/Pong - Ping every 30s, pong response required, read/write deadlines, stale connection cleanup
+    - AC7: Error Handling and Resilience - Graceful disconnect, structured logging, hub continues despite errors, invalid JSON handling
+    - AC8: Broadcast Performance and Non-Blocking - select/default pattern, slow client handling, buffered channels (256), no blocking
+    - AC9: Integration with Live-Tail Coordinator - Hub reference in live-tail, BroadcastBlock/BroadcastTransaction calls, async/non-blocking
+    - AC10: Metrics and Observability - Prometheus metrics (connections gauge, messages counter, errors counter), structured logging
+    - AC11: Security and Rate Limiting - Connection rate limiting (10/min/IP), max message size (1MB), max connections (1000), CORS
+    - AC12: Configuration and Environment Variables - WEBSOCKET_MAX_CONNECTIONS, WEBSOCKET_PING_INTERVAL, buffer sizes, loaded on startup
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      - path: docs/tech-spec-epic-2.md
+        title: Tech Spec Epic 2 - API Layer & User Interface
+        section: Story 2.2 - WebSocket Streaming for Real-Time Updates
+        snippet: Describes WebSocket hub architecture, client lifecycle, subscribe/unsubscribe protocol, and integration with live-tail coordinator. Includes code examples for Hub.Run(), client readPump/writePump goroutines, and broadcast methods.
+
+      - path: docs/PRD.md
+        title: Product Requirements Document
+        section: FR009 - Real-Time Event Streaming
+        snippet: System must provide WebSocket API endpoint that allows clients to subscribe to real-time updates for new blocks and transactions as they are indexed.
+
+      - path: docs/solution-architecture.md
+        title: Solution Architecture
+        section: API Server Components - WebSocket Hub
+        snippet: Describes WebSocket hub as part of API server layer, managing client connections with pub/sub channels for real-time updates.
+
+      - path: docs/stories/2-1-rest-api-endpoints-for-blockchain-queries.md
+        title: Story 2.1 - REST API Endpoints
+        section: Dev Agent Record
+        snippet: Establishes API server infrastructure (chi router, CORS, metrics, global logger) that WebSocket endpoint will extend. Provides patterns for structured logging, environment configuration, and Prometheus metrics.
+
+      - path: docs/stories/1-4-live-tail-mechanism-for-new-blocks.md
+        title: Story 1.4 - Live-Tail Mechanism
+        section: Dev Agent Record
+        snippet: Live-tail coordinator processes blocks sequentially with time.Ticker. WebSocket hub will integrate here to broadcast blocks after insertion. Provides patterns for context cancellation, metrics collection, and error resilience.
+    </docs>
+
+    <code>
+      - path: internal/api/server.go
+        kind: server
+        symbol: Server
+        lines: all
+        reason: API server struct that will initialize and start WebSocket Hub, register /v1/stream route
+
+      - path: internal/api/middleware.go
+        kind: middleware
+        symbol: corsMiddleware
+        lines: all
+        reason: CORS configuration to reuse for WebSocket upgrader CheckOrigin function
+
+      - path: internal/api/metrics.go
+        kind: metrics
+        symbol: Prometheus metrics definitions
+        lines: all
+        reason: Extend with WebSocket-specific metrics (connections gauge, messages counter, errors counter)
+
+      - path: internal/index/livetail.go
+        kind: coordinator
+        symbol: LiveTailCoordinator
+        lines: all
+        reason: Will be modified to add Hub reference and call hub.BroadcastBlock() after block insertion
+
+      - path: internal/util/logger.go
+        kind: utility
+        symbol: GlobalLogger
+        lines: all
+        reason: Global logger with util.Info(), util.Error(), util.Debug() for WebSocket structured logging
+
+      - path: cmd/api/main.go
+        kind: entrypoint
+        symbol: main
+        lines: all
+        reason: API server initialization - will add Hub initialization and pass to server/live-tail
+    </code>
+
+    <dependencies>
+      go:
+        - github.com/gorilla/websocket: latest - Production-proven WebSocket library for Go
+        - github.com/go-chi/chi/v5: v5.x - HTTP router (already used for REST API)
+        - github.com/prometheus/client_golang: latest - Prometheus metrics (already used)
+        - log/slog: stdlib - Structured logging (already configured)
+        - sync: stdlib - RWMutex for thread-safe operations
+        - context: stdlib - Context-based cancellation
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Use gorilla/websocket library (production-proven, specified in tech spec)
+    - Hub runs in single dedicated goroutine, clients get 2 goroutines each (readPump, writePump)
+    - Non-blocking broadcast using select/default pattern - never block on slow clients
+    - Buffered send channels (256 messages) per client to absorb burst traffic
+    - Integration with live-tail must be async/non-blocking to not slow indexing pipeline
+    - Reuse existing API server infrastructure: chi router, CORS, metrics registry, global logger
+    - Follow patterns from Story 2.1: global logger (no logger dependencies), environment config, Prometheus metrics
+    - Follow patterns from Story 1.4: context cancellation, error resilience (log-and-continue), atomic metrics
+    - Test coverage target: >70% (maintain standards from Stories 1.4 and 2.1)
+    - WebSocket endpoint shares same server as REST endpoints (/v1/stream on same port)
+  </constraints>
+
+  <interfaces>
+    - name: Hub.BroadcastBlock(block)
+      kind: method
+      signature: func (h *Hub) BroadcastBlock(block *domain.Block)
+      path: internal/api/websocket/hub.go
+      description: Called by live-tail coordinator after block insertion to broadcast to all newBlocks subscribers
+
+    - name: Hub.BroadcastTransaction(tx)
+      kind: method
+      signature: func (h *Hub) BroadcastTransaction(tx *domain.Transaction)
+      path: internal/api/websocket/hub.go
+      description: Called by live-tail coordinator after transaction insertion to broadcast to all newTxs subscribers
+
+    - name: Hub.Run(ctx)
+      kind: method
+      signature: func (h *Hub) Run(ctx context.Context)
+      path: internal/api/websocket/hub.go
+      description: Main hub loop - handles register, unregister, and broadcast events. Runs in dedicated goroutine
+
+    - name: Client.readPump()
+      kind: method
+      signature: func (c *Client) readPump()
+      path: internal/api/websocket/client.go
+      description: Client goroutine that reads control messages (subscribe/unsubscribe) from WebSocket connection
+
+    - name: Client.writePump()
+      kind: method
+      signature: func (c *Client) writePump()
+      path: internal/api/websocket/client.go
+      description: Client goroutine that writes messages from send channel to WebSocket connection
+
+    - name: handleWebSocket
+      kind: HTTP handler
+      signature: func (s *Server) handleWebSocket(w http.ResponseWriter, r *http.Request)
+      path: internal/api/websocket/handler.go
+      description: HTTP handler that upgrades connection to WebSocket, creates Client, and registers with Hub
+
+    - name: WebSocket Protocol - Subscribe
+      kind: JSON message
+      signature: {"action": "subscribe", "channels": ["newBlocks", "newTxs"]}
+      path: client -> server
+      description: Client control message to subscribe to channels
+
+    - name: WebSocket Protocol - New Block Event
+      kind: JSON message
+      signature: {"type": "newBlock", "data": {height, hash, tx_count, timestamp, miner, gas_used}}
+      path: server -> client
+      description: Server event message broadcasting new block to subscribed clients
+  </interfaces>
+
+  <tests>
+    <standards>
+      Follow testing patterns from Stories 1.4 and 2.1: table-driven tests with testify assertions, mock interfaces for dependencies (RPC, Store), integration tests with real components where feasible. For WebSocket: use gorilla/websocket test utilities for mock connections, create test HTTP server with WebSocket endpoint, simulate multiple concurrent clients, verify non-blocking behavior with slow/fast client mixes. Target coverage: >70% for websocket package.
+    </standards>
+
+    <locations>
+      - internal/api/websocket/hub_test.go - Hub register/unregister/broadcast tests
+      - internal/api/websocket/client_test.go - Client lifecycle, ping/pong, readPump/writePump tests
+      - internal/api/websocket/handler_test.go - HTTP upgrade, CORS, connection tests
+      - internal/index/livetail_test.go - Add tests for Hub broadcast integration (mock Hub)
+    </locations>
+
+    <ideas>
+      AC1 Tests: WebSocket endpoint upgrade, CORS check, concurrent connections (100+), graceful shutdown
+      AC2 Tests: Hub register/unregister operations, thread-safety with concurrent goroutines, client cleanup on disconnect
+      AC3 Tests: Subscribe/unsubscribe message parsing, channel filtering, clients only receive subscribed messages, invalid message handling
+      AC4 Tests: Block broadcast to all newBlocks subscribers, message format validation, non-blocking with slow client, <100ms latency
+      AC5 Tests: Transaction broadcast to newTxs subscribers, batch broadcast, channel filtering, <200ms latency
+      AC6 Tests: Ping/pong mechanism, connection timeout detection, read/write deadline enforcement, stale connection cleanup
+      AC7 Tests: Client disconnect handling, structured logging verification, hub continues despite client errors, invalid JSON handling
+      AC8 Tests: Non-blocking broadcast with select/default, slow client doesn't block fast clients, buffered channel behavior
+      AC9 Tests: Live-tail integration - mock Hub in live-tail tests, verify BroadcastBlock/BroadcastTransaction called after insertion, async behavior
+      AC10 Tests: Prometheus metrics incremented correctly (connection count, messages by type, errors), structured log output format
+      AC11 Tests: Rate limiting enforcement (10 conn/min/IP), max message size rejection, max connections limit, CORS validation
+      AC12 Tests: Configuration loading from environment variables, defaults applied correctly, validation of config values
+    </ideas>
+  </tests>
+</story-context>

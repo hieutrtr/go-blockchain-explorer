@@ -81,7 +81,7 @@ func TestLiveTailCoordinator_NewCoordinator(t *testing.T) {
 	mockStore := &MockBlockStore{latestBlock: &Block{Height: 100}}
 	config := DefaultConfig()
 
-	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, config)
+	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, nil, config)
 	require.NoError(t, err)
 	assert.NotNil(t, coordinator)
 	assert.Equal(t, config.PollInterval, coordinator.config.PollInterval)
@@ -91,7 +91,7 @@ func TestLiveTailCoordinator_NewCoordinator_NilRPC(t *testing.T) {
 	mockStore := &MockBlockStore{}
 	config := DefaultConfig()
 
-	_, err := NewLiveTailCoordinator(nil, mockStore, nil, nil, config)
+	_, err := NewLiveTailCoordinator(nil, mockStore, nil, nil, nil, config)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "rpcClient cannot be nil")
 }
@@ -100,7 +100,7 @@ func TestLiveTailCoordinator_NewCoordinator_NilStore(t *testing.T) {
 	mockRPC := &MockRPCBlockFetcher{}
 	config := DefaultConfig()
 
-	_, err := NewLiveTailCoordinator(mockRPC, nil, nil, nil, config)
+	_, err := NewLiveTailCoordinator(mockRPC, nil, nil, nil, nil, config)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "store cannot be nil")
 }
@@ -116,7 +116,7 @@ func TestLiveTailCoordinator_SequentialProcessing(t *testing.T) {
 	}
 	config := &LiveTailConfig{PollInterval: 1 * time.Millisecond}
 
-	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, config)
+	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, nil, config)
 	require.NoError(t, err)
 
 	// Override parseRPCBlock to return consistent block chain
@@ -163,7 +163,7 @@ func TestLiveTailCoordinator_PollingCadence(t *testing.T) {
 	// Fast ticker for testing
 	config := &LiveTailConfig{PollInterval: 10 * time.Millisecond}
 
-	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, config)
+	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, nil, config)
 	require.NoError(t, err)
 
 	// Setup block chain with proper hashes
@@ -196,7 +196,7 @@ func TestLiveTailCoordinator_BlockNotFound(t *testing.T) {
 	}
 	config := DefaultConfig()
 
-	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, config)
+	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, nil, config)
 	require.NoError(t, err)
 
 	// Mock RPC to return "not found" for next block (no block in cache)
@@ -220,7 +220,7 @@ func TestLiveTailCoordinator_ErrorResilience(t *testing.T) {
 	}
 	config := DefaultConfig()
 
-	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, config)
+	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, nil, config)
 	require.NoError(t, err)
 
 	// Setup block chain
@@ -254,7 +254,7 @@ func TestLiveTailCoordinator_ContextCancellation(t *testing.T) {
 	// Slow ticker
 	config := &LiveTailConfig{PollInterval: 1 * time.Second}
 
-	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, config)
+	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, nil, config)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -290,7 +290,7 @@ func TestLiveTailCoordinator_ReorgDetection(t *testing.T) {
 
 	config := DefaultConfig()
 
-	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, mockReorgHandler, config)
+	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, mockReorgHandler, nil, config)
 	require.NoError(t, err)
 
 	// Create block with different parent hash (hash B instead of A)
@@ -384,7 +384,7 @@ func TestLiveTailCoordinator_Stats(t *testing.T) {
 	}
 	config := DefaultConfig()
 
-	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, config)
+	coordinator, err := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, nil, config)
 	require.NoError(t, err)
 
 	// Setup block chain with proper hashes
@@ -456,7 +456,7 @@ func BenchmarkLiveTail_ProcessBlock(b *testing.B) {
 	}
 	config := DefaultConfig()
 
-	coordinator, _ := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, config)
+	coordinator, _ := NewLiveTailCoordinator(mockRPC, mockStore, nil, nil, nil, config)
 
 	// Pre-populate blocks
 	for h := uint64(101); h <= uint64(10000); h++ {
