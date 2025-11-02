@@ -1,0 +1,195 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>5</storyId>
+    <title>Transaction Search and Display Interface</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/2-5-transaction-search-and-display-interface.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain explorer user (developer, researcher, or testnet participant)</asA>
+    <iWant>to search for specific transactions, view detailed transaction information, explore block contents, and look up address transaction history</iWant>
+    <soThat>I can investigate specific blockchain activities, track addresses, and drill down into block and transaction details beyond the live ticker view</soThat>
+    <tasks>
+      - Task 1: Implement client-side routing (AC: #5)
+      - Task 2: Create search interface (AC: #1, #2, #6)
+      - Task 3: Implement transaction search (AC: #1)
+      - Task 4: Implement address history lookup (AC: #2)
+      - Task 5: Create block detail page (AC: #3)
+      - Task 6: Create transaction detail page (AC: #4)
+      - Task 7: Implement copy-to-clipboard functionality (AC: #7)
+      - Task 8: Add search result caching (AC: #9)
+      - Task 9: Update existing navigation (AC: #3, #4)
+      - Task 10: Testing and browser compatibility (AC: #8, #9, #10)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    AC1: Transaction Search by Hash - Search input field with debounce (300ms), real-time search, display matching transactions, handle no results gracefully
+    AC2: Address Transaction History Lookup - Search accepts Ethereum addresses, fetch from /v1/address/{addr}/txs with pagination, display sent/received transactions
+    AC3: Block Detail Page - Navigate by clicking block number/hash, display full block info, list all transactions, back button/breadcrumb
+    AC4: Transaction Detail Page - Navigate by clicking transaction hash, display full transaction info, link to block detail, link to address history
+    AC5: Client-Side Routing (URL Hash Navigation) - Use URL hash routing (#/block/123, #/tx/0xabc), browser back/forward, bookmark support
+    AC6: Search UI/UX Enhancements - Styled search, placeholder text, loading spinner, keyboard shortcuts (/, Enter, Esc), search history
+    AC7: Responsive Detail Pages - Mobile-friendly layout, truncate hashes with copy button, toast notification on copy
+    AC8: Error Handling and Loading States - Loading indicators, 404 handling, network error retry, user-friendly messages
+    AC9: Performance and Optimization - Debounce search (300ms), LRU cache (max 20 entries), pagination, page load &lt;2s
+    AC10: Accessibility and Usability - Keyboard navigable, focus management, semantic HTML, breadcrumbs, aria-live regions
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/PRD.md" title="Product Requirements Document" section="FR012 - Recent Transactions View">
+        Frontend must display a table of recent transactions with pagination, showing key transaction details (hash, from/to addresses, value, block height). This requirement extends to Story 2.5 with search functionality.
+      </doc>
+      <doc path="docs/PRD.md" title="Product Requirements Document" section="FR006 - Address Transaction History">
+        System must provide REST API endpoint to retrieve transaction history for a given Ethereum address, with pagination support for addresses with many transactions. GET /v1/address/{addr}/txs endpoint available.
+      </doc>
+      <doc path="docs/PRD.md" title="Product Requirements Document" section="FR010 - Block Search Interface">
+        Frontend must provide search functionality allowing users to look up blocks by height or hash, transactions by hash, and addresses for transaction history. Story 2.5 implements full search capabilities.
+      </doc>
+      <doc path="docs/tech-spec-epic-2.md" title="Tech Spec: Epic 2" section="Story 2.4 &amp; 2.5: Minimal SPA Frontend with Search">
+        Frontend displays live blocks and allows transaction search. Technology stack: Vanilla HTML/JS, URL Hash API for routing, Clipboard API for copy functionality, LocalStorage for search history (optional), CSS3 for toast notifications.
+      </doc>
+      <doc path="docs/tech-spec-epic-2.md" title="Tech Spec: Epic 2" section="API Specification">
+        REST endpoints available: GET /v1/blocks/{heightOrHash} (block details), GET /v1/txs/{hash} (transaction details), GET /v1/address/{addr}/txs (address history with pagination). Response format includes full metadata for all endpoints.
+      </doc>
+      <doc path="docs/stories/2-4-minimal-spa-frontend-with-live-blocks-ticker.md" title="Story 2.4: Minimal SPA Frontend" section="Dev Notes">
+        Story 2.4 established vanilla JavaScript patterns, WebSocket integration, REST API patterns, dark theme styling, responsive layout (two-column desktop, single-column mobile &lt;768px), utility functions (truncateHash, formatTimestamp, formatEth), error handling with retry logic (API_RETRY_DELAY_MS), pagination pattern for blocks.
+      </doc>
+      <doc path="docs/stories/2-4-minimal-spa-frontend-with-live-blocks-ticker.md" title="Story 2.4: Minimal SPA Frontend" section="Completion Notes">
+        Patterns established: Configuration constants (RECONNECT_BASE_DELAY_MS, TIMESTAMP_UPDATE_INTERVAL_MS, API_RETRY_DELAY_MS), utility functions for formatting, event listener cleanup on beforeunload, WebSocket protocol {action: "subscribe", channels: ["newBlocks"]}, retry logic for API errors.
+      </doc>
+      <doc path="docs/stories/2-1-rest-api-endpoints-for-blockchain-queries.md" title="Story 2.1: REST API Endpoints" section="Acceptance Criteria">
+        REST API endpoints: GET /v1/blocks/{height}, GET /v1/blocks/{hash}, GET /v1/txs/{hash}, GET /v1/address/{addr}/txs with pagination (limit/offset). All endpoints return structured JSON with proper error handling (400, 404, 500).
+      </doc>
+      <doc path="docs/stories/2-3-pagination-implementation-for-large-result-sets.md" title="Story 2.3: Pagination Implementation" section="Acceptance Criteria">
+        Pagination support: limit/offset parameters, maximum limit enforcement (100), response metadata (total, limit, offset), lenient validation (invalid values use defaults). Address transactions default limit=50, max=100.
+      </doc>
+    </docs>
+
+    <code>
+      <artifact path="web/app.js" kind="frontend" symbol="connectWebSocket" lines="63-112" reason="WebSocket connection management with exponential backoff, subscribe to newBlocks channel. Story 2.5 needs to integrate cache invalidation on new block events (clear stale block cache)."/>
+      <artifact path="web/app.js" kind="frontend" symbol="fetchBlocks" lines="115-142" reason="REST API pattern for fetching paginated blocks with retry logic. Story 2.5 reuses this pattern for search API calls and pagination controls."/>
+      <artifact path="web/app.js" kind="frontend" symbol="renderBlocks" lines="192-217" reason="DOM rendering pattern for blocks table. Story 2.5 adapts for block detail page and search results rendering."/>
+      <artifact path="web/app.js" kind="frontend" symbol="truncateHash" lines="25-28" reason="Utility function for hash truncation (6 chars + '...' + 4 chars). Story 2.5 extends with copy button integration for full hashes."/>
+      <artifact path="web/app.js" kind="frontend" symbol="formatTimestamp" lines="30-38" reason="Relative timestamp formatting (Xs ago, Xm ago, Xh ago, Xd ago). Story 2.5 reuses for block/transaction detail pages."/>
+      <artifact path="web/app.js" kind="frontend" symbol="formatEth" lines="40-44" reason="Wei to ETH conversion (divide by 1e18, format to 4 decimals). Story 2.5 needs full precision option for transaction detail page (AC4 - not just 4 decimals)."/>
+      <artifact path="web/app.js" kind="frontend" lines="1-5" reason="Configuration constants pattern (RECONNECT_BASE_DELAY_MS, TIMESTAMP_UPDATE_INTERVAL_MS, API_RETRY_DELAY_MS). Story 2.5 adds DEBOUNCE_DELAY_MS=300, CACHE_MAX_SIZE=20."/>
+      <artifact path="web/app.js" kind="frontend" lines="313-355" reason="Pagination event listeners pattern for Previous/Next buttons. Story 2.5 reuses for address history pagination controls."/>
+      <artifact path="web/index.html" kind="frontend" lines="1-72" reason="Semantic HTML5 structure with header, main, sections, tables. Story 2.5 extends with search input in header, detail page containers, toast notification element."/>
+      <artifact path="web/style.css" kind="frontend" lines="1-262" reason="Dark theme styling (#1a202c background, #2d3748 sections, #e7eef6 text), responsive layout (two-column grid desktop, single-column mobile &lt;768px), pagination button styling. Story 2.5 extends with search input styling, detail page styles, toast notification animations."/>
+      <artifact path="web/style.css" kind="frontend" symbol=".hash-truncated" lines="142-150" reason="Clickable hash styling (monospace, #60a5fa color, underline on hover). Story 2.5 extends with copy button integration."/>
+      <artifact path="internal/api/handlers.go" kind="backend" symbol="handleGetBlockByHeight" reason="Backend handler for GET /v1/blocks/{height} endpoint. Returns full block metadata including transactions array. Story 2.5 calls this endpoint for block detail page."/>
+      <artifact path="internal/api/handlers.go" kind="backend" symbol="handleGetTransaction" reason="Backend handler for GET /v1/txs/{hash} endpoint. Returns full transaction details. Story 2.5 calls this endpoint for transaction detail page and search."/>
+      <artifact path="internal/api/handlers.go" kind="backend" symbol="handleGetAddressTransactions" reason="Backend handler for GET /v1/address/{addr}/txs with pagination. Returns transactions array with total count. Story 2.5 calls this endpoint for address history lookup."/>
+      <artifact path="internal/api/pagination.go" kind="backend" symbol="parsePagination" lines="8-40" reason="Pagination parameter parsing (limit, offset) with lenient validation. Frontend benefits from default values on invalid input. Story 2.5 leverages for address history pagination."/>
+    </code>
+
+    <dependencies>
+      <javascript>
+        <api name="URL Hash API" version="standard" reason="Client-side routing without server involvement. Use window.location.hash, hashchange event, history.pushState for navigation (#/block/123, #/tx/0xabc)."/>
+        <api name="Clipboard API" version="standard" reason="Copy to clipboard functionality (navigator.clipboard.writeText). Fallback to textarea selection for older browsers."/>
+        <api name="LocalStorage API" version="standard" reason="Optional search history storage (max 10 recent searches). Use localStorage.setItem/getItem with JSON serialization."/>
+        <api name="Fetch API" version="standard" reason="HTTP requests to REST API endpoints (/v1/blocks, /v1/txs, /v1/address). Already used in Story 2.4."/>
+        <api name="WebSocket API" version="standard" reason="Real-time updates for cache invalidation. Connection already established in Story 2.4 (web/app.js:63-112)."/>
+      </javascript>
+      <go>
+        <package name="github.com/go-chi/chi/v5" version="v5.2.3" reason="HTTP router for REST API endpoints (Story 2.1). No frontend changes needed."/>
+        <package name="github.com/jackc/pgx/v5" version="v5.7.6" reason="PostgreSQL driver for backend queries. Frontend consumes via REST API."/>
+      </go>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Vanilla JavaScript pattern from Story 2.4: No frameworks (React, Vue, Angular), no build tools (webpack, babel), direct DOM manipulation
+    - Use existing utility functions: truncateHash(), formatTimestamp(), formatEth() - extend formatEth() for full precision option
+    - Follow established error handling: Retry once with setTimeout(fn, API_RETRY_DELAY_MS) for network errors
+    - Maintain dark theme styling: #1a202c background, #2d3748 sections, #e7eef6 text, #60a5fa links/buttons
+    - Responsive layout: Desktop two-column grid, mobile single-column (&lt;768px breakpoint)
+    - WebSocket integration: Listen for newBlock events to invalidate cached block data
+    - URL hash routing pattern: #/ (home), #/block/{heightOrHash}, #/tx/{hash}, #/address/{addr}
+    - Browser back/forward support: Use hashchange event, update page title dynamically
+    - Configuration constants: Add DEBOUNCE_DELAY_MS=300, CACHE_MAX_SIZE=20 alongside existing constants
+    - LRU cache implementation: In-memory JavaScript object with max 20 entries, evict oldest on overflow
+    - Debounce pattern: 300ms delay after last keystroke before triggering search API call
+    - Pagination from Story 2.3: Use limit/offset parameters, display total/limit/offset metadata, handle edge cases (offset &gt; total returns empty array)
+    - Copy-to-clipboard: Use Clipboard API with fallback to textarea selection, show toast notification on success
+    - Toast notification: CSS animation (fade in/out), auto-dismiss after 3 seconds, single toast at a time
+    - Search input detection: Transaction hash (0x + 64 hex), address (0x + 40 hex), block height (digits only)
+    - Keyboard shortcuts: Focus search on "/" key, submit on Enter, clear on Escape
+    - Semantic HTML: Use article, section, dl/dt/dd for detail pages, nav for breadcrumbs
+    - Accessibility: aria-live regions for loading states, keyboard navigable links/buttons, focus management after navigation
+    - No animations or transitions beyond toast notification (keep simple for MVP)
+    - Performance target: Page load &lt;2 seconds for detail pages, search debounce reduces API calls
+    - Static file serving: All files served from web/ directory by API server (internal/api/server.go:91)
+    - Same-origin requests: No CORS issues, WebSocket upgrade on same domain
+  </constraints>
+
+  <interfaces>
+    <interface name="GET /v1/blocks/{heightOrHash}" kind="REST" signature="GET /v1/blocks/{heightOrHash}" path="internal/api/handlers.go">
+      Block details endpoint. Accepts height (integer) or hash (0x + 64 hex). Returns block metadata: height, hash, parent_hash, miner, gas_used, gas_limit, timestamp, tx_count, orphaned, transactions array (hashes). 404 if not found.
+    </interface>
+    <interface name="GET /v1/txs/{hash}" kind="REST" signature="GET /v1/txs/{hash}" path="internal/api/handlers.go">
+      Transaction details endpoint. Accepts hash (0x + 64 hex). Returns transaction metadata: hash, block_height, tx_index, from_addr, to_addr (nullable), value_wei, fee_wei, gas_used, gas_price, nonce, success status. 404 if not found.
+    </interface>
+    <interface name="GET /v1/address/{addr}/txs" kind="REST" signature="GET /v1/address/{addr}/txs?limit={n}&amp;offset={m}" path="internal/api/handlers.go">
+      Address transaction history endpoint. Accepts address (0x + 40 hex), limit (default=50, max=100), offset (default=0). Returns: address, transactions array (with timestamp), total count, limit, offset. Transactions sorted by block_height DESC.
+    </interface>
+    <interface name="connectWebSocket" kind="function" signature="connectWebSocket() -&gt; void" path="web/app.js">
+      Establishes WebSocket connection to /v1/stream, subscribes to newBlocks channel. Already implemented in Story 2.4. Story 2.5 adds cache invalidation on newBlock event.
+    </interface>
+    <interface name="truncateHash" kind="function" signature="truncateHash(hash: string) -&gt; string" path="web/app.js">
+      Truncates hash to 6 + '...' + 4 format. Story 2.5 reuses for detail pages and search results.
+    </interface>
+    <interface name="formatTimestamp" kind="function" signature="formatTimestamp(timestamp: number) -&gt; string" path="web/app.js">
+      Converts Unix timestamp to relative time (Xs ago, Xm ago, Xh ago, Xd ago). Story 2.5 reuses for detail pages.
+    </interface>
+    <interface name="formatEth" kind="function" signature="formatEth(valueWei: string, fullPrecision?: boolean) -&gt; string" path="web/app.js">
+      Converts Wei to ETH. Existing: divide by 1e18, format to 4 decimals. Story 2.5 extends with optional fullPrecision parameter for transaction detail page.
+    </interface>
+    <interface name="LRU Cache" kind="pattern" signature="cache = {get(key), set(key, value), has(key), clear()}" path="web/app.js">
+      In-memory cache with max 20 entries, LRU eviction policy. Keys: block/{heightOrHash}, tx/{hash}, address/{addr}. Invalidate block cache on newBlock WebSocket event.
+    </interface>
+    <interface name="Debounce" kind="pattern" signature="debounce(fn, delay) -&gt; function" path="web/app.js">
+      Debounce function to delay search API calls by 300ms after last keystroke. Prevents excessive API requests while user is typing.
+    </interface>
+    <interface name="Router" kind="pattern" signature="router.navigate(path), router.onHashChange()" path="web/app.js">
+      URL hash router for client-side navigation. Parse window.location.hash, render view, update page title. Handle hashchange event for browser back/forward.
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Frontend testing uses manual browser testing for Story 2.5 MVP (no Playwright/Cypress). Test in Chrome 90+, Firefox 88+, Safari 14+. Verify keyboard navigation, screen reader announcements (aria-live), responsive layout (&lt;768px), loading states, error handling, pagination, search functionality, routing (back/forward buttons), copy-to-clipboard, toast notifications, cache behavior (inspect network tab for reduced API calls). Performance testing: measure page load time (&lt;2s for detail pages), verify debounce reduces API calls (DevTools network monitor). Memory testing: monitor DevTools memory over 10 minutes, verify no leaks from event listeners or cache.
+    </standards>
+
+    <locations>
+      Manual browser testing (no automated E2E tests for MVP)
+      Network DevTools tab for API call inspection
+      Memory DevTools tab for leak detection
+      Responsive design testing at 375x667 (mobile), 1920x1080 (desktop)
+    </locations>
+
+    <ideas>
+      - AC1: Test transaction search with valid hash (should display result), invalid hash (should show error), partial hash (should handle gracefully), empty input (should clear results)
+      - AC2: Test address history with address having 0 transactions (show "No transactions"), 1 transaction, 50 transactions (verify pagination), 100+ transactions (verify pagination controls)
+      - AC3: Test block detail page navigation from ticker (click block number), verify all fields displayed (height, hash, parent, miner, gas, timestamp, tx count), click transaction links to navigate to tx detail
+      - AC4: Test transaction detail page from search and from block detail, verify all fields (hash, block, from/to, value in full ETH, gas, nonce, status), click block link to navigate to block detail, click address links
+      - AC5: Test URL routing - navigate to #/block/123, #/tx/0xabc, #/address/0xdef via hash change, verify browser back/forward buttons work, test direct URL navigation (bookmark), verify page title updates
+      - AC6: Test search UI - keyboard shortcut "/" focuses input, Enter submits search, Escape clears search, loading spinner appears during API request, search history persisted in localStorage
+      - AC7: Test responsive layout on mobile (&lt;768px), verify hash truncation with expand button, test copy-to-clipboard for hashes and addresses, verify toast notification appears and auto-dismisses
+      - AC8: Test 404 handling - search for non-existent block/tx/address, verify error message displayed, test network error (offline mode), verify retry logic, test timeout handling
+      - AC9: Test performance - measure page load time for block detail (should be &lt;2s), verify debounce reduces API calls (type fast, verify only 1 API call after 300ms), test cache hit rate (navigate to same block twice, verify 1 API call)
+      - AC10: Test keyboard navigation - Tab through all links/buttons, Enter activates links, verify focus visible, test screen reader (aria-live announces loading states), verify breadcrumb navigation
+      - Test cache invalidation - open block detail page, wait for new block via WebSocket, verify block cache cleared (navigate to block detail again, API call made)
+      - Test LRU cache eviction - navigate to 25 blocks (cache max 20), verify oldest entries evicted, verify cache statistics in console logs
+      - Test pagination edge cases - offset beyond total (returns empty array), limit=0 or negative (uses default), limit &gt; max (capped to 100)
+      - Test URL hash encoding - special characters in hashes, verify proper encoding/decoding
+      - Test memory leaks - open detail pages, navigate 50 times, monitor memory growth (should be stable)
+    </ideas>
+  </tests>
+</story-context>

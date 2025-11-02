@@ -33,6 +33,28 @@ type TransactionData struct {
 	BlockHeight uint64
 }
 
+// Log represents a transaction log (event)
+type Log struct {
+	LogIndex uint64
+	Address  []byte     // Address that emitted the log
+	Topics   [4][]byte  // Up to 4 indexed topics
+	Data     []byte     // Log data
+}
+
+// Transaction represents a blockchain transaction
+type Transaction struct {
+	Hash     []byte   // Transaction hash
+	TxIndex  int      // Position in block
+	FromAddr []byte   // Sender address
+	ToAddr   *[]byte  // Recipient address (nil for contract creation)
+	ValueWei string   // Value transferred in wei (as string to preserve precision)
+	GasUsed  uint64
+	GasPrice uint64
+	Nonce    uint64
+	Success  bool     // Whether transaction succeeded
+	Logs     []Log    // Transaction logs (events)
+}
+
 // LiveTailCoordinator manages sequential live-tail processing of new blocks
 type LiveTailCoordinator struct {
 	rpcClient    RPCBlockFetcher
@@ -71,13 +93,14 @@ type ReorgHandler interface {
 
 // Block represents a blockchain block (domain model, stub)
 type Block struct {
-	Height     uint64
-	Hash       []byte
-	ParentHash []byte
-	Timestamp  uint64
-	Miner      []byte // Coinbase address
-	GasUsed    uint64
-	TxCount    int
+	Height       uint64
+	Hash         []byte
+	ParentHash   []byte
+	Timestamp    uint64
+	Miner        []byte // Coinbase address
+	GasUsed      uint64
+	TxCount      int
+	Transactions []Transaction // Extracted transactions from block
 }
 
 // NewLiveTailCoordinator creates a new live-tail coordinator

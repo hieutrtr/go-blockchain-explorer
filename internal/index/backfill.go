@@ -18,6 +18,7 @@ type RPCBlockFetcher interface {
 // BackfillCoordinator manages parallel block backfilling with worker pool pattern
 type BackfillCoordinator struct {
 	rpcClient RPCBlockFetcher
+	store     BlockStoreExtended
 	config    *Config
 
 	// Metrics
@@ -36,9 +37,12 @@ type BlockResult struct {
 }
 
 // NewBackfillCoordinator creates a new backfill coordinator
-func NewBackfillCoordinator(rpcClient RPCBlockFetcher, config *Config) (*BackfillCoordinator, error) {
+func NewBackfillCoordinator(rpcClient RPCBlockFetcher, store BlockStoreExtended, config *Config) (*BackfillCoordinator, error) {
 	if rpcClient == nil {
 		return nil, fmt.Errorf("rpcClient cannot be nil")
+	}
+	if store == nil {
+		return nil, fmt.Errorf("store cannot be nil")
 	}
 	if config == nil {
 		return nil, fmt.Errorf("config cannot be nil")
@@ -49,6 +53,7 @@ func NewBackfillCoordinator(rpcClient RPCBlockFetcher, config *Config) (*Backfil
 
 	return &BackfillCoordinator{
 		rpcClient: rpcClient,
+		store:     store,
 		config:    config,
 	}, nil
 }
@@ -97,19 +102,29 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 	collectedHeights := make([]uint64, 0, bc.config.BatchSize)
 	go func() {
 		defer collectorWg.Done()
-		// For now, just consume results (actual DB insertion in future)
+		// Collect results and insert into database in batches
 		for result := range resultChan {
 			if result.Error == nil {
 				collectedBlocks = append(collectedBlocks, result.Block)
 				collectedHeights = append(collectedHeights, result.Height)
 
+				// When batch is full, insert into database
 				if len(collectedBlocks) >= bc.config.BatchSize {
-					util.Debug("batch complete",
-						"batch_size", len(collectedBlocks),
-						"batch_count", int(bc.batchesProcessed)+1,
-					)
-					bc.batchesProcessed++
-					bc.blocksInserted += int64(len(collectedBlocks))
+					if err := bc.insertBatch(ctx, collectedBlocks); err != nil {
+						util.Error("failed to insert batch",
+							"error", err.Error(),
+							"batch_size", len(collectedBlocks),
+							"batch_count", int(bc.batchesProcessed)+1,
+						)
+						// Continue processing despite error (log it but don't halt)
+					} else {
+						util.Debug("batch inserted successfully",
+							"batch_size", len(collectedBlocks),
+							"batch_count", int(bc.batchesProcessed)+1,
+						)
+						bc.batchesProcessed++
+						bc.blocksInserted += int64(len(collectedBlocks))
+					}
 					collectedBlocks = collectedBlocks[:0]
 					collectedHeights = collectedHeights[:0]
 				}
@@ -118,11 +133,18 @@ func (bc *BackfillCoordinator) Backfill(ctx context.Context, startHeight, endHei
 
 		// Flush remaining blocks
 		if len(collectedBlocks) > 0 {
-			util.Debug("flushing remaining blocks",
-				"batch_size", len(collectedBlocks),
-			)
-			bc.batchesProcessed++
-			bc.blocksInserted += int64(len(collectedBlocks))
+			if err := bc.insertBatch(ctx, collectedBlocks); err != nil {
+				util.Error("failed to insert final batch",
+					"error", err.Error(),
+					"batch_size", len(collectedBlocks),
+				)
+			} else {
+				util.Debug("final batch inserted successfully",
+					"batch_size", len(collectedBlocks),
+				)
+				bc.batchesProcessed++
+				bc.blocksInserted += int64(len(collectedBlocks))
+			}
 		}
 	}()
 
@@ -299,4 +321,42 @@ func (bc *BackfillCoordinator) Stats() map[string]interface{} {
 // BackfillWithConfig executes backfill using stored config
 func (bc *BackfillCoordinator) BackfillWithConfig(ctx context.Context) error {
 	return bc.Backfill(ctx, bc.config.StartHeight, bc.config.EndHeight)
+}
+
+// insertBatch converts RPC blocks to domain model and inserts them into database
+func (bc *BackfillCoordinator) insertBatch(ctx context.Context, rpcBlocks []*types.Block) error {
+	if len(rpcBlocks) == 0 {
+		return nil
+	}
+
+	// Insert each block sequentially within the batch
+	// Note: Could be optimized with bulk insert, but this is simpler and still fast enough
+	for _, rpcBlock := range rpcBlocks {
+		// Convert RPC block to domain model
+		block := parseRPCBlockToDomain(rpcBlock)
+
+		// Insert block into database
+		if err := bc.store.InsertBlock(ctx, block); err != nil {
+			return fmt.Errorf("failed to insert block %d: %w", block.Height, err)
+		}
+	}
+
+	return nil
+}
+
+// parseRPCBlockToDomain converts ethereum RPC block to index.Block domain model
+func parseRPCBlockToDomain(rpcBlock *types.Block) *Block {
+	if rpcBlock == nil {
+		return nil
+	}
+
+	return &Block{
+		Height:     rpcBlock.NumberU64(),
+		Hash:       rpcBlock.Hash().Bytes(),
+		ParentHash: rpcBlock.ParentHash().Bytes(),
+		Timestamp:  rpcBlock.Time(),
+		Miner:      rpcBlock.Coinbase().Bytes(),
+		GasUsed:    rpcBlock.GasUsed(),
+		TxCount:    len(rpcBlock.Transactions()),
+	}
 }

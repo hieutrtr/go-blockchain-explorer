@@ -1,0 +1,196 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>2.4</storyId>
+    <title>Minimal SPA Frontend with Live Blocks Ticker</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/2-4-minimal-spa-frontend-with-live-blocks-ticker.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain explorer user (developer, researcher, or testnet participant)</asA>
+    <iWant>a simple web interface that displays live blocks and recent transactions with real-time updates</iWant>
+    <soThat>I can monitor blockchain activity without needing to use command-line tools or external services, and see new blocks appear immediately as they are indexed</soThat>
+    <tasks>
+      <task id="1">Create HTML structure (AC: #1, #2, #4, #5, #7) with 6 subtasks</task>
+      <task id="2">Implement CSS styling (AC: #5, #9) with 7 subtasks</task>
+      <task id="3">Implement WebSocket connection (AC: #1, #3, #10) with 6 subtasks</task>
+      <task id="4">Implement blocks ticker display (AC: #1, #6) with 6 subtasks</task>
+      <task id="5">Implement real-time block updates (AC: #1, #3) with 5 subtasks</task>
+      <task id="6">Implement transactions table (AC: #2, #6) with 6 subtasks</task>
+      <task id="7">Configure static file serving in API server (AC: #4) with 5 subtasks</task>
+      <task id="8">Manual testing and browser compatibility (AC: #6, #8, #10) with 7 subtasks</task>
+      <task id="9">Documentation (AC: #8, #10) with 4 subtasks</task>
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <ac id="1">AC1: Live Blocks Ticker with Real-Time Updates - Display 10 most recent blocks in ticker/table, WebSocket updates, prepend new blocks</ac>
+    <ac id="2">AC2: Recent Transactions Table - Display 25 recent transactions, fetch from API, update on new blocks</ac>
+    <ac id="3">AC3: WebSocket Connection Management - Establish on page load, subscribe to newBlocks, status indicator, reconnect logic, clean close</ac>
+    <ac id="4">AC4: Static File Serving - Files served from web/ directory, chi FileServer, accessible at root path, no build step</ac>
+    <ac id="5">AC5: Responsive Layout - Desktop-first 1920x1080, mobile-acceptable, header, two-column desktop, single-column mobile</ac>
+    <ac id="6">AC6: Loading States and Error Handling - Connection messages, empty states, error handling, retry logic</ac>
+    <ac id="7">AC7: Semantic HTML and Basic Accessibility - Semantic tags, heading hierarchy, alt text, keyboard navigation</ac>
+    <ac id="8">AC8: Browser Compatibility - Chrome 90+, Firefox 88+, Safari 14+, Edge 90+, standard Web APIs, no polyfills</ac>
+    <ac id="9">AC9: Minimal Styling - Clean appearance, consistent colors, readable fonts, hover states, no animations, no CSS frameworks</ac>
+    <ac id="10">AC10: Performance and Efficiency - Page loads <2s on localhost, no UI lag, limited to 10 blocks/25 txs, no memory leaks, cleanup listeners</ac>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-epic-2.md</path>
+        <title>Tech Spec: Epic 2 - API Layer & User Interface</title>
+        <section>Story 2.4 & 2.5: Minimal SPA Frontend with Search</section>
+        <snippet>Frontend SPA section provides complete HTML/CSS/JS examples for live blocks ticker, WebSocket connection, and transactions table. Includes exact code structure for index.html, style.css, and app.js with event handlers.</snippet>
+      </doc>
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Solution Architecture</title>
+        <section>API Server Components</section>
+        <snippet>Architecture defines chi router serving static files from web/ directory, WebSocket hub for real-time updates, REST endpoints for data fetching. Frontend is stateless, event-driven UI pattern.</snippet>
+      </doc>
+      <doc>
+        <path>docs/PRD.md</path>
+        <title>Product Requirements Document</title>
+        <section>FR010: Frontend SPA Data Display</section>
+        <snippet>Requirement FR010 specifies frontend must display live blocks ticker, recent transactions, with WebSocket real-time updates. Basic responsive design, vanilla JavaScript only, no frameworks.</snippet>
+      </doc>
+      <doc>
+        <path>docs/epic-stories.md</path>
+        <title>Epic Breakdown</title>
+        <section>Story 2.4: Minimal SPA Frontend with Live Blocks Ticker</section>
+        <snippet>Story 2.4 depends on Story 2.1 (REST API) and Story 2.2 (WebSocket). Creates simple web interface with live ticker, vanilla HTML/JS, served as static files from API server. No framework, no build step.</snippet>
+      </doc>
+      <doc>
+        <path>README.md</path>
+        <title>Project README</title>
+        <section>API Documentation</section>
+        <snippet>README documents all REST API endpoints including /v1/blocks pagination parameters, WebSocket /v1/stream protocol, and example curl commands. Frontend will consume these documented APIs.</snippet>
+      </doc>
+    </docs>
+    <code>
+      <artifact>
+        <path>internal/api/server.go</path>
+        <kind>server configuration</kind>
+        <symbol>Router</symbol>
+        <lines>47-94</lines>
+        <reason>Already configured to serve static files from web/ directory at line 91 with http.FileServer. No changes needed to server routing, just need to create web/ content.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/api/handlers.go</path>
+        <kind>API handlers</kind>
+        <symbol>handleListBlocks, handleGetBlock, handleGetTransaction, handleGetAddressTransactions</symbol>
+        <lines>23-157</lines>
+        <reason>REST API endpoints that frontend will call. handleListBlocks returns paginated blocks (default limit=25). Frontend needs to understand response format.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/api/websocket/hub.go</path>
+        <kind>WebSocket hub</kind>
+        <symbol>Hub, Run, Broadcast</symbol>
+        <lines>all</lines>
+        <reason>WebSocket hub implementation that broadcasts newBlock messages. Frontend subscribes to this via /v1/stream endpoint. Message format defined in HandleWebSocket.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/api/websocket/handlers.go</path>
+        <kind>WebSocket handler</kind>
+        <symbol>HandleWebSocket</symbol>
+        <lines>all</lines>
+        <reason>WebSocket protocol handler. Frontend must send subscribe message with channels: ["newBlocks"]. Receives messages with type: "newBlock" and data containing block details.</reason>
+      </artifact>
+      <artifact>
+        <path>web/app.js</path>
+        <kind>JavaScript partial</kind>
+        <symbol>connectWebSocket, handleNewBlock, handleNewTransaction</symbol>
+        <lines>1-50</lines>
+        <reason>EXISTING partial JavaScript file with WebSocket connection logic. Needs completion: implement handleNewBlock/handleNewTransaction UI updates, add API fetching, add DOM manipulation for blocks ticker and transactions table.</reason>
+      </artifact>
+      <artifact>
+        <path>internal/api/pagination.go</path>
+        <kind>pagination utilities</kind>
+        <symbol>parsePagination, NewPaginatedResponse</symbol>
+        <lines>12-99</lines>
+        <reason>Pagination utilities used by API endpoints. Frontend must understand paginated response format: {data: [], total: N, limit: M, offset: O}. Used for blocks and transactions lists.</reason>
+      </artifact>
+    </code>
+    <dependencies>
+      <go>
+        <package name="github.com/go-chi/chi/v5" version="v5.2.3">HTTP router with FileServer support for static files</package>
+        <package name="github.com/gorilla/websocket" version="v1.5.3">WebSocket implementation for real-time updates</package>
+      </go>
+      <frontend>
+        <technology name="Vanilla JavaScript" version="ES6+">No build step, standard Web APIs (WebSocket, Fetch, DOM)</technology>
+        <technology name="HTML5" version="5">Semantic tags (header, main, section, table)</technology>
+        <technology name="CSS3" version="3">Flexbox/Grid for layout, media queries for responsive</technology>
+      </frontend>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    <constraint id="1">MUST use vanilla JavaScript - no frameworks (React, Vue, Angular) allowed per tech spec Epic 2 scope</constraint>
+    <constraint id="2">MUST have no build step - no webpack, no npm scripts for frontend bundling. Simple file serving only</constraint>
+    <constraint id="3">MUST use semantic HTML5 tags (header, main, section, table) for accessibility and structure</constraint>
+    <constraint id="4">MUST implement WebSocket reconnection with exponential backoff (1s, 2s, 4s, 8s) for resilience</constraint>
+    <constraint id="5">MUST limit blocks ticker to 10 items and transactions to 25 items for performance</constraint>
+    <constraint id="6">MUST clean up WebSocket connection on page unload (beforeunload event) to prevent leaks</constraint>
+    <constraint id="7">MUST use project-relative paths for static file references (style.css, app.js) not absolute paths</constraint>
+    <constraint id="8">MUST format timestamps as human-readable relative time ("2 seconds ago") not raw Unix timestamps</constraint>
+    <constraint id="9">MUST truncate hashes to 12 characters (0x1234...5678 format) for readability in UI</constraint>
+    <constraint id="10">MUST format Wei values to ETH with 4 decimals (value_wei / 10^18) for user-friendly display</constraint>
+    <constraint id="11">Desktop-first design optimized for 1920x1080, mobile-acceptable (not fully optimized) per AC5</constraint>
+    <constraint id="12">CORS already configured in server.go, no changes needed for same-origin requests</constraint>
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>GET /v1/blocks</name>
+      <kind>REST endpoint</kind>
+      <signature>GET /v1/blocks?limit=10&offset=0 → {blocks: [...], total: N, limit: M, offset: O}</signature>
+      <path>internal/api/handlers.go:23-46</path>
+      <description>Fetch recent blocks with pagination. Frontend calls on page load to populate initial ticker with 10 blocks.</description>
+    </interface>
+    <interface>
+      <name>WebSocket /v1/stream</name>
+      <kind>WebSocket endpoint</kind>
+      <signature>WS /v1/stream with subscribe message: {"type":"subscribe","channel":"newBlocks"} → receives {"type":"newBlock","data":{...}}</signature>
+      <path>internal/api/websocket/handlers.go</path>
+      <description>Real-time block updates. Frontend subscribes on connection, receives newBlock messages with full block data (height, hash, timestamp, tx_count).</description>
+    </interface>
+    <interface>
+      <name>Block Data Model</name>
+      <kind>Data structure</kind>
+      <signature>{height: int, hash: string, parent_hash: string, timestamp: int64, tx_count: int, gas_used: string, gas_limit: string, miner: string, orphaned: bool}</signature>
+      <path>internal/store/models.go</path>
+      <description>Block data structure returned by API and WebSocket. Frontend displays subset: height, hash (truncated), timestamp (formatted), tx_count.</description>
+    </interface>
+    <interface>
+      <name>Transaction Data Model</name>
+      <kind>Data structure</kind>
+      <signature>{hash: string, block_height: int, from_addr: string, to_addr: string, value_wei: string, success: bool}</signature>
+      <path>internal/store/models.go</path>
+      <description>Transaction structure. Frontend fetches from blocks endpoint, displays: hash (truncated), from/to (truncated), value (formatted in ETH), block_height.</description>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      This story focuses on frontend implementation with manual browser testing. Go backend tests exist for API and WebSocket (handlers_test.go, websocket tests in Story 2.2). Frontend testing is manual: verify WebSocket connection, live updates, responsive layout, and browser compatibility across Chrome 90+, Firefox 88+, Safari 14+. No frontend unit test framework required for MVP (vanilla JS, no build step). Focus on functional testing: page load, WebSocket messages, DOM updates, memory leak checks via DevTools.
+    </standards>
+    <locations>
+      Manual testing checklist in Task 8 subtasks. No automated frontend test files. Backend tests: internal/api/handlers_test.go, internal/api/integration_test.go, internal/api/websocket/*.go tests from Story 2.2.
+    </locations>
+    <ideas>
+      <idea ac="1">Test live blocks ticker: Load page, verify 10 blocks displayed, send WebSocket newBlock message, verify block prepended to top, verify oldest block removed (max 10)</idea>
+      <idea ac="2">Test transactions table: Verify 25 transactions displayed, verify columns (hash, from, to, value ETH, block height), verify truncation format</idea>
+      <idea ac="3">Test WebSocket connection: Verify status indicator shows "connected", stop worker, verify "disconnected" + reconnect attempt, restart worker, verify reconnection</idea>
+      <idea ac="4">Test static file serving: Access http://localhost:8080/, verify HTML loads, verify CSS applied, verify JS loaded (check DevTools console), verify 404 for non-existent paths</idea>
+      <idea ac="5">Test responsive layout: Desktop view (1920x1080), verify two-column layout. Mobile view (<768px), verify single-column stack. Test header, blocks, transactions sections.</idea>
+      <idea ac="6">Test error handling: Stop API server, verify frontend shows connection error, restart server, verify recovery. Test empty states (no blocks, no transactions).</idea>
+      <idea ac="8">Test browser compatibility: Load in Chrome 90+, Firefox 88+, Safari 14+. Verify WebSocket works, Fetch API works, DOM updates work, styling renders correctly.</idea>
+      <idea ac="10">Test performance: Monitor DevTools memory for 5 minutes with live updates, verify no memory leak. Measure page load time (<2s). Verify no UI lag on WebSocket messages (60fps).</idea>
+    </ideas>
+  </tests>
+</story-context>

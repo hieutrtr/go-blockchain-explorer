@@ -44,14 +44,14 @@ development_status:
   1-6-database-migration-system: backlog
   1-7-prometheus-metrics-for-indexer: done
   1-8-structured-logging-for-debugging: done
-  1-9-integration-tests-for-indexer-pipeline: backlog
+  1-9-integration-tests-for-indexer-pipeline: done
   epic-1-retrospective: optional
 
   epic-2: backlog
   2-1-rest-api-endpoints-for-blockchain-queries: done
   2-2-websocket-streaming-for-real-time-updates: done
-  2-3-pagination-implementation-for-large-result-sets: backlog
-  2-4-minimal-spa-frontend-with-live-blocks-ticker: backlog
-  2-5-transaction-search-and-display-interface: backlog
+  2-3-pagination-implementation-for-large-result-sets: done
+  2-4-minimal-spa-frontend-with-live-blocks-ticker: done
+  2-5-transaction-search-and-display-interface: done
   2-6-health-check-and-metrics-exposure: backlog
   epic-2-retrospective: optional

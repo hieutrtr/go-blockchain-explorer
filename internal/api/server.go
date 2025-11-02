@@ -60,6 +60,7 @@ func (s *Server) Router() http.Handler {
 	r.Route("/v1", func(r chi.Router) {
 		// Block endpoints
 		r.Get("/blocks", s.handleListBlocks)
+		r.Get("/blocks/{height}/transactions", s.handleGetBlockTransactions) // Must be before generic /{heightOrHash}
 		r.Get("/blocks/{heightOrHash}", s.handleGetBlock)
 
 		// Transaction endpoints

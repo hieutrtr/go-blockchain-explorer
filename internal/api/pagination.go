@@ -3,6 +3,8 @@ package api
 import (
 	"net/http"
 	"strconv"
+
+	"github.com/hieutt50/go-blockchain-explorer/internal/util"
 )
 
 // parsePagination extracts and validates pagination parameters from the request
@@ -15,8 +17,16 @@ func parsePagination(r *http.Request, defaultLimit, maxLimit int) (limit, offset
 	} else {
 		parsedLimit, err := strconv.Atoi(limitStr)
 		if err != nil || parsedLimit < 1 {
+			util.Warn("invalid pagination limit, using default",
+				"provided", limitStr,
+				"default", defaultLimit,
+				"path", r.URL.Path)
 			limit = defaultLimit
 		} else if parsedLimit > maxLimit {
+			util.Info("pagination limit exceeds maximum, clamping to max",
+				"provided", parsedLimit,
+				"max", maxLimit,
+				"path", r.URL.Path)
 			limit = maxLimit
 		} else {
 			limit = parsedLimit
@@ -30,6 +40,9 @@ func parsePagination(r *http.Request, defaultLimit, maxLimit int) (limit, offset
 	} else {
 		parsedOffset, err := strconv.Atoi(offsetStr)
 		if err != nil || parsedOffset < 0 {
+			util.Warn("invalid pagination offset, using zero",
+				"provided", offsetStr,
+				"path", r.URL.Path)
 			offset = 0
 		} else {
 			offset = parsedOffset
@@ -71,4 +84,16 @@ func newValidationError(message string) *ValidationError {
 
 func (e *ValidationError) Error() string {
 	return e.message
+}
+
+// NewPaginatedResponse creates a standardized paginated response with metadata
+// data can be any type ([]Block, []Transaction, etc.)
+// Returns a map with data, total, limit, and offset fields
+func NewPaginatedResponse(data interface{}, total, limit, offset int) map[string]interface{} {
+	return map[string]interface{}{
+		"data":   data,
+		"total":  total,
+		"limit":  limit,
+		"offset": offset,
+	}
 }

@@ -253,6 +253,62 @@ func (s *Store) GetAddressTransactions(ctx context.Context, address string, limi
 	return txs, total, nil
 }
 
+// GetBlockTransactions returns paginated transactions for a specific block, ordered by transaction index
+func (s *Store) GetBlockTransactions(ctx context.Context, blockHeight int64, limit, offset int) ([]Transaction, int64, error) {
+	// Get total count of transactions in this block
+	var total int64
+	err := s.pool.QueryRow(ctx, `
+		SELECT COUNT(*)
+		FROM transactions
+		WHERE block_height = $1
+	`, blockHeight).Scan(&total)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to count block transactions: %w", err)
+	}
+
+	// Get paginated transactions ordered by tx_index
+	rows, err := s.pool.Query(ctx, `
+		SELECT hash, block_height, tx_index, from_addr, to_addr, value_wei, fee_wei, gas_used, gas_price, nonce, success
+		FROM transactions
+		WHERE block_height = $1
+		ORDER BY tx_index ASC
+		LIMIT $2 OFFSET $3
+	`, blockHeight, limit, offset)
+	if err != nil {
+		return nil, 0, fmt.Errorf("failed to query block transactions: %w", err)
+	}
+	defer rows.Close()
+
+	txs := make([]Transaction, 0, limit)
+	for rows.Next() {
+		var tx Transaction
+		var hashBytes, fromBytes []byte
+		var toAddr *[]byte
+
+		err := rows.Scan(&hashBytes, &tx.BlockHeight, &tx.TxIndex, &fromBytes, &toAddr,
+			&tx.ValueWei, &tx.FeeWei, &tx.GasUsed, &tx.GasPrice, &tx.Nonce, &tx.Success)
+		if err != nil {
+			return nil, 0, fmt.Errorf("failed to scan transaction: %w", err)
+		}
+
+		tx.Hash = "0x" + hex.EncodeToString(hashBytes)
+		tx.FromAddr = "0x" + hex.EncodeToString(fromBytes)
+
+		if toAddr != nil {
+			toAddrStr := "0x" + hex.EncodeToString(*toAddr)
+			tx.ToAddr = &toAddrStr
+		}
+
+		txs = append(txs, tx)
+	}
+
+	if err := rows.Err(); err != nil {
+		return nil, 0, fmt.Errorf("error iterating block transactions: %w", err)
+	}
+
+	return txs, total, nil
+}
+
 // QueryLogs returns paginated event logs with optional filters
 func (s *Store) QueryLogs(ctx context.Context, address, topic0 *string, limit, offset int) ([]Log, int64, error) {
 	// Build dynamic query based on filters

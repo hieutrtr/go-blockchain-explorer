@@ -48,6 +48,11 @@ func main() {
 		"max_conns", dbConfig.MaxConns,
 	)
 
+	// Note: Database migrations are managed separately to avoid race conditions.
+	// Run migrations manually with: make migrate
+	// or: make db-setup
+	util.Info("skipping database migrations (manage manually to avoid conflicts)")
+
 	// Initialize WebSocket Hub for real-time streaming (Story 2.2)
 	wsConfig := websocket.LoadConfig()
 	hub := websocket.NewHub(wsConfig)

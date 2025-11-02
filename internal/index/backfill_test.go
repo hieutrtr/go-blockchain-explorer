@@ -2,6 +2,7 @@ package index
 
 import (
 	"context"
+	"fmt"
 	"math/big"
 	"testing"
 	"time"
@@ -40,6 +41,59 @@ func NewMockRPCClient() *MockRPCClient {
 	}
 }
 
+// MockStore implements BlockStoreExtended for testing
+type MockStore struct {
+	blocks       map[uint64]*Block
+	insertCalls  int
+	insertErrors map[uint64]error
+}
+
+func NewMockStore() *MockStore {
+	return &MockStore{
+		blocks:       make(map[uint64]*Block),
+		insertErrors: make(map[uint64]error),
+	}
+}
+
+func (m *MockStore) GetLatestBlock(ctx context.Context) (*Block, error) {
+	var latest *Block
+	for _, block := range m.blocks {
+		if latest == nil || block.Height > latest.Height {
+			latest = block
+		}
+	}
+	if latest == nil {
+		return nil, fmt.Errorf("no blocks in store")
+	}
+	return latest, nil
+}
+
+func (m *MockStore) GetBlockByHeight(ctx context.Context, height uint64) (*Block, error) {
+	if block, ok := m.blocks[height]; ok {
+		return block, nil
+	}
+	return nil, fmt.Errorf("block not found")
+}
+
+func (m *MockStore) InsertBlock(ctx context.Context, block *Block) error {
+	m.insertCalls++
+	if err, ok := m.insertErrors[block.Height]; ok {
+		return err
+	}
+	m.blocks[block.Height] = block
+	return nil
+}
+
+func (m *MockStore) MarkBlocksOrphaned(ctx context.Context, startHeight, endHeight uint64) error {
+	for h := startHeight; h <= endHeight; h++ {
+		if block, ok := m.blocks[h]; ok {
+			// Mark as orphaned (we don't have orphaned field in our Block struct, so just track it)
+			_ = block
+		}
+	}
+	return nil
+}
+
 // generateTestBlock creates a test block with the given height
 func generateTestBlock(height uint64) *types.Block {
 	header := &types.Header{
@@ -67,7 +121,8 @@ func TestBackfillCoordinator_NewCoordinator(t *testing.T) {
 		EndHeight:   100,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(t, err)
 	assert.NotNil(t, coordinator)
 	assert.Equal(t, 4, coordinator.config.Workers)
@@ -76,7 +131,8 @@ func TestBackfillCoordinator_NewCoordinator(t *testing.T) {
 
 func TestBackfillCoordinator_NewCoordinator_NilRPC(t *testing.T) {
 	config := &Config{Workers: 4, BatchSize: 50, StartHeight: 0, EndHeight: 100}
-	_, err := NewBackfillCoordinator(nil, config)
+	mockStore := NewMockStore()
+	_, err := NewBackfillCoordinator(nil, mockStore, config)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "rpcClient cannot be nil")
 }
@@ -90,7 +146,8 @@ func TestBackfillCoordinator_NewCoordinator_InvalidConfig(t *testing.T) {
 		EndHeight:   100,
 	}
 
-	_, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	_, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	assert.Error(t, err)
 }
 
@@ -112,7 +169,8 @@ func TestBackfillCoordinator_HappyPath_SmallDataset(t *testing.T) {
 		EndHeight:   endHeight,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(t, err)
 
 	// Act
@@ -148,7 +206,8 @@ func TestBackfillCoordinator_WorkerResilience(t *testing.T) {
 		EndHeight:   endHeight,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -178,7 +237,8 @@ func TestBackfillCoordinator_AllBlocksInserted(t *testing.T) {
 		EndHeight:   endHeight,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -316,7 +376,8 @@ func TestBackfillCoordinator_ContextCancellation(t *testing.T) {
 		EndHeight:   endHeight,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -351,7 +412,8 @@ func TestBackfillCoordinator_BatchCollection(t *testing.T) {
 		EndHeight:   endHeight,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -393,7 +455,8 @@ func BenchmarkBackfill_MockRPC(b *testing.B) {
 		EndHeight:   999,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(b, err)
 
 	b.ReportAllocs()
@@ -431,7 +494,8 @@ func TestBackfillCoordinator_Stats(t *testing.T) {
 		EndHeight:   9,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -478,7 +542,8 @@ func TestBackfillCoordinator_MultipleWorkers(t *testing.T) {
 				EndHeight:   tt.blocks - 1,
 			}
 
-			coordinator, err := NewBackfillCoordinator(mockRPC, config)
+			mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 			require.NoError(t, err)
 
 			ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -503,7 +568,8 @@ func TestBackfillCoordinator_InvalidHeightRange(t *testing.T) {
 	}
 
 	// Config validation should fail
-	_, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	_, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	assert.Error(t, err)
 	assert.Contains(t, err.Error(), "start_height")
 }
@@ -528,7 +594,8 @@ func TestBackfillCoordinator_LongRunning(t *testing.T) {
 		EndHeight:   4999,
 	}
 
-	coordinator, err := NewBackfillCoordinator(mockRPC, config)
+	mockStore := NewMockStore()
+	coordinator, err := NewBackfillCoordinator(mockRPC, mockStore, config)
 	require.NoError(t, err)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Minute)

@@ -1,0 +1,97 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Blockchain Explorer - Ethereum Sepolia Testnet</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+    <header>
+        <div class="header-left">
+            <h1><a href="#/" class="logo-link">Blockchain Explorer</a></h1>
+            <p class="network-name">Ethereum Sepolia Testnet</p>
+        </div>
+        <div class="header-search">
+            <div class="search-container">
+                <input
+                    type="text"
+                    id="search-input"
+                    class="search-input"
+                    placeholder="Search by transaction hash or address (0x...)"
+                    autocomplete="off"
+                />
+                <button id="search-clear" class="search-clear" style="display: none;">×</button>
+                <div id="search-loading" class="search-loading" style="display: none;">
+                    <div class="spinner"></div>
+                </div>
+            </div>
+        </div>
+        <div class="header-right">
+            <div class="status-indicator">
+                <span id="connection-status" class="status-dot disconnected"></span>
+                <span id="connection-text">Connecting...</span>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <!-- Home View (default) -->
+        <div id="home-view" class="container">
+            <section class="live-blocks">
+                <h2>Live Blocks</h2>
+                <div id="blocks-empty" class="empty-state">No blocks yet</div>
+                <table id="blocks-table" class="data-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Height</th>
+                            <th>Hash</th>
+                            <th>Age</th>
+                            <th>Transactions</th>
+                        </tr>
+                    </thead>
+                    <tbody id="blocks-tbody">
+                        <!-- Blocks will be inserted here dynamically -->
+                    </tbody>
+                </table>
+                <div id="blocks-pagination" class="pagination" style="display: none;">
+                    <button id="blocks-prev" class="pagination-btn">← Previous</button>
+                    <span id="blocks-page-info" class="page-info">Page 1</span>
+                    <button id="blocks-next" class="pagination-btn">Next →</button>
+                </div>
+            </section>
+
+            <section class="recent-transactions">
+                <h2>Recent Transactions</h2>
+                <div id="transactions-empty" class="empty-state">No transactions yet</div>
+                <table id="transactions-table" class="data-table" style="display: none;">
+                    <thead>
+                        <tr>
+                            <th>Transaction Hash</th>
+                            <th>From</th>
+                            <th>To</th>
+                            <th>Value (ETH)</th>
+                            <th>Block</th>
+                        </tr>
+                    </thead>
+                    <tbody id="transactions-tbody">
+                        <!-- Transactions will be inserted here dynamically -->
+                    </tbody>
+                </table>
+                <div id="transactions-pagination" class="pagination" style="display: none;">
+                    <button id="transactions-prev" class="pagination-btn">← Previous</button>
+                    <span id="transactions-page-info" class="page-info">Page 1</span>
+                    <button id="transactions-next" class="pagination-btn">Next →</button>
+                </div>
+            </section>
+        </div>
+
+        <!-- Detail View (for block, tx, address pages) -->
+        <div id="detail-view" style="display: none;">
+            <!-- Content will be dynamically injected by router -->
+        </div>
+    </main>
+
+    <script src="app.js"></script>
+</body>
+</html>

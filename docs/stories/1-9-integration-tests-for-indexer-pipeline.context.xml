@@ -1,0 +1,367 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>1</epicId>
+    <storyId>9</storyId>
+    <title>Integration Tests for Indexer Pipeline</title>
+    <status>drafted</status>
+    <generatedAt>2025-11-01</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/1-9-integration-tests-for-indexer-pipeline.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>blockchain explorer developer</asA>
+    <iWant>comprehensive integration tests for the entire indexer pipeline</iWant>
+    <soThat>I can validate end-to-end functionality, prevent regressions, and ensure data correctness across backfill, live-tail, and reorg handling</soThat>
+    <tasks>
+      - Task 1: Set up integration test infrastructure (AC: #8)
+      - Task 2: Implement backfill integration tests (AC: #1)
+      - Task 3: Implement live-tail integration tests (AC: #2)
+      - Task 4: Implement reorg recovery integration tests (AC: #3)
+      - Task 5: Implement RPC client integration tests (AC: #4)
+      - Task 6: Implement database integration tests (AC: #5)
+      - Task 7: Implement metrics integration tests (AC: #6)
+      - Task 8: Implement logging integration tests (AC: #7)
+      - Task 9: Implement end-to-end workflow tests (AC: #10)
+      - Task 10: Validate coverage and CI integration (AC: #9)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    <criterion id="AC1" title="Backfill Integration Tests">
+      - Test backfills small block range (100 blocks) and verifies all data in database
+      - Validates blocks, transactions, and logs are correctly indexed
+      - Verifies foreign key relationships and data integrity
+      - Checks block hashes match expected chain
+      - Tests complete in &lt;30 seconds
+    </criterion>
+
+    <criterion id="AC2" title="Live-Tail Integration Tests">
+      - Test fetches new blocks sequentially and indexes them
+      - Validates parent-child block relationships
+      - Tests lag metrics are updated correctly
+      - Verifies blocks are indexed in order
+      - Tests handle missing blocks gracefully (polling continues)
+    </criterion>
+
+    <criterion id="AC3" title="Reorg Recovery Integration Tests">
+      - Simulates chain reorganization by inserting orphaned blocks
+      - Validates reorg detection when parent hash mismatch occurs
+      - Verifies orphaned blocks are marked with orphaned = TRUE
+      - Confirms new canonical chain is indexed correctly
+      - Tests reorg depths from 1 to 6 blocks
+    </criterion>
+
+    <criterion id="AC4" title="RPC Client Integration Tests">
+      - Tests retry logic with mock RPC endpoint that fails then succeeds
+      - Validates exponential backoff timing
+      - Tests permanent error immediate failure (no retry)
+      - Verifies error classification (transient vs permanent)
+      - Tests timeout handling and context cancellation
+    </criterion>
+
+    <criterion id="AC5" title="Database Integration Tests">
+      - Tests bulk insert performance with 100+ blocks
+      - Validates transaction management (commit/rollback)
+      - Tests foreign key constraints (cascade deletes)
+      - Verifies unique constraints prevent duplicates
+      - Tests connection pool behavior under load
+    </criterion>
+
+    <criterion id="AC6" title="Metrics Integration Tests">
+      - Validates metrics are updated during indexing
+      - Tests metrics endpoint /metrics returns Prometheus format
+      - Verifies metrics persist across multiple indexing operations
+      - Includes: explorer_blocks_indexed_total, explorer_index_lag_blocks, explorer_rpc_errors_total
+    </criterion>
+
+    <criterion id="AC7" title="Logging Integration Tests">
+      - Validates structured logs are emitted during indexing
+      - Tests log levels (DEBUG, INFO, WARN, ERROR) work correctly
+      - Verifies logs contain required fields (time, level, msg, attributes)
+      - Tests log output is valid JSON
+      - Validates sensitive data is not logged
+    </criterion>
+
+    <criterion id="AC8" title="Test Infrastructure">
+      - Integration tests use test containers or in-memory PostgreSQL
+      - Tests are isolated (each test has clean database state)
+      - Tests can run in CI pipeline or locally via make test-integration
+      - Test database schema matches production schema (migrations applied)
+      - Tests clean up resources (connections, containers) on completion
+    </criterion>
+
+    <criterion id="AC9" title="Test Coverage and Performance">
+      - Integration test suite achieves &gt;70% code coverage for critical paths
+      - All integration tests complete in &lt;5 minutes total
+      - Tests are deterministic (no flaky tests)
+      - Test output includes coverage report
+      - Tests can be filtered by component
+    </criterion>
+
+    <criterion id="AC10" title="End-to-End Workflow Tests">
+      - Test complete indexer workflow: backfill → live-tail → reorg
+      - Validates data correctness end-to-end
+      - Tests graceful shutdown of worker pool (context cancellation)
+      - Verifies system state after shutdown (no data loss)
+      - Tests restart and resume from last indexed block
+    </criterion>
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc>
+        <path>docs/tech-spec-epic-1.md</path>
+        <title>Tech Spec: Epic 1 - Core Indexing &amp; Data Pipeline</title>
+        <section>Story 1.9: Integration Tests for Indexer Pipeline</section>
+        <snippet>Create integration tests that validate end-to-end indexer functionality including backfill, live-tail, and reorg handling. Tests use test containers or in-memory DB for isolation, validate data correctness (block hashes match chain), run in CI pipeline, and complete in reasonable time (&lt;5 minutes).</snippet>
+      </doc>
+
+      <doc>
+        <path>docs/solution-architecture.md</path>
+        <title>Blockchain Explorer - Solution Architecture Document</title>
+        <section>Section 8: Testing Strategy</section>
+        <snippet>Test pyramid approach with unit tests (fast, isolated), integration tests (test component interactions with real DB), and end-to-end tests (full workflow). Coverage target &gt;70% for critical paths. Use Go standard library testing, testify for assertions, and testcontainers-go for PostgreSQL test instances.</snippet>
+      </doc>
+
+      <doc>
+        <path>docs/epic-stories.md</path>
+        <title>Epic Stories Breakdown</title>
+        <section>Story 1.9: Integration Tests for Indexer Pipeline</section>
+        <snippet>Test scenarios include: backfill small block range (100 blocks) and verify data in DB, simulate reorg by inserting orphaned chain and validate recovery, test RPC retry logic with mock failing endpoint, verify metrics are updated correctly during indexing, test graceful shutdown of worker pool.</snippet>
+      </doc>
+
+      <doc>
+        <path>docs/stories/1-8-structured-logging-for-debugging.md</path>
+        <title>Story 1.8: Structured Logging for Debugging</title>
+        <section>Learnings from Previous Story</section>
+        <snippet>Logger utilities available at internal/util/logger.go with util.GlobalLogger pattern. Thread-safe concurrent logging achieved 87.7% test coverage. RPC Client, Database, and Backfill Coordinator already integrated with global logger. JSON structured logging with log levels DEBUG, INFO, WARN, ERROR.</snippet>
+      </doc>
+    </docs>
+
+    <code>
+      <artifact>
+        <path>internal/index/backfill.go</path>
+        <kind>service</kind>
+        <symbol>BackfillCoordinator</symbol>
+        <lines>entire file</lines>
+        <reason>Core backfill logic to be tested - worker pool pattern, batch processing, metrics updates</reason>
+      </artifact>
+
+      <artifact>
+        <path>internal/index/livetail.go</path>
+        <kind>service</kind>
+        <symbol>LiveTailCoordinator</symbol>
+        <lines>entire file</lines>
+        <reason>Live-tail coordinator to be tested - sequential block processing, reorg detection, lag metrics</reason>
+      </artifact>
+
+      <artifact>
+        <path>internal/index/reorg.go</path>
+        <kind>service</kind>
+        <symbol>ReorgHandler</symbol>
+        <lines>entire file</lines>
+        <reason>Reorg handler to be tested - orphaned block marking, fork point detection, recovery logic</reason>
+      </artifact>
+
+      <artifact>
+        <path>internal/rpc/client.go</path>
+        <kind>service</kind>
+        <symbol>Client</symbol>
+        <lines>entire file</lines>
+        <reason>RPC client to be tested - retry logic, exponential backoff, error classification, timeout handling</reason>
+      </artifact>
+
+      <artifact>
+        <path>internal/store/pg/postgres.go</path>
+        <kind>service</kind>
+        <symbol>PostgresStore</symbol>
+        <lines>entire file</lines>
+        <reason>Storage layer to be tested - bulk inserts, transactions, foreign key cascades, connection pooling</reason>
+      </artifact>
+
+      <artifact>
+        <path>internal/util/metrics.go</path>
+        <kind>utility</kind>
+        <symbol>Metrics</symbol>
+        <lines>entire file</lines>
+        <reason>Metrics to be validated - explorer_blocks_indexed_total, explorer_index_lag_blocks, explorer_rpc_errors_total</reason>
+      </artifact>
+
+      <artifact>
+        <path>internal/util/logger.go</path>
+        <kind>utility</kind>
+        <symbol>GlobalLogger, NewLogger</symbol>
+        <lines>entire file</lines>
+        <reason>Logger to be tested - structured JSON output, log levels, field validation, thread-safety</reason>
+      </artifact>
+
+      <artifact>
+        <path>internal/ingest/ingester.go</path>
+        <kind>service</kind>
+        <symbol>Ingester</symbol>
+        <lines>entire file</lines>
+        <reason>Ingestion layer to be tested - block parsing, domain model conversion, transaction/log extraction</reason>
+      </artifact>
+
+      <artifact>
+        <path>migrations/000001_initial_schema.up.sql</path>
+        <kind>migration</kind>
+        <symbol>N/A</symbol>
+        <lines>entire file</lines>
+        <reason>Database schema to be applied in test database - blocks, transactions, logs tables with constraints</reason>
+      </artifact>
+
+      <artifact>
+        <path>migrations/000002_add_indexes.up.sql</path>
+        <kind>migration</kind>
+        <symbol>N/A</symbol>
+        <lines>entire file</lines>
+        <reason>Index migrations to be applied in test database - composite indexes for performance</reason>
+      </artifact>
+    </code>
+
+    <dependencies>
+      <go>
+        <package name="github.com/ethereum/go-ethereum" version="v1.16.5" usage="Mock block generation for tests, types.Block structure"/>
+        <package name="github.com/jackc/pgx/v5" version="v5.7.2" usage="PostgreSQL connection pool, COPY protocol for bulk inserts"/>
+        <package name="github.com/stretchr/testify" version="v1.10.0" usage="Test assertions (assert, require), mock interfaces"/>
+        <package name="github.com/testcontainers/testcontainers-go" version="latest" usage="Docker containers for PostgreSQL test instances"/>
+        <package name="github.com/prometheus/client_golang" version="v1.21.0" usage="Metrics validation in integration tests"/>
+        <package name="github.com/golang-migrate/migrate/v4" version="v4.18.1" usage="Apply migrations to test database"/>
+      </go>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Integration tests must use //go:build integration build tag to separate from unit tests
+    - Test database must be isolated per test (use testcontainers or cleanup between tests)
+    - Mock RPC client must generate deterministic test data (blocks, transactions, logs)
+    - Tests must clean up resources (database connections, Docker containers) on completion
+    - Test coverage must be &gt;70% for critical paths (backfill, live-tail, reorg handlers)
+    - All integration tests must complete in &lt;5 minutes total
+    - Tests must be deterministic and not flaky (run 10 times, all pass)
+    - Use table-driven tests for parametric scenarios (reorg depths, error types)
+    - Capture and validate log output using bytes.Buffer without depending on format
+    - Tests must validate behavior, not implementation details (test outcomes, not internals)
+    - Follow existing test patterns from Story 1.8 (util/logger_test.go) for consistency
+    - Use util.GlobalLogger for logging in tests (consistent with production code)
+    - Test database schema must match production (apply all migrations)
+    - Tests must run locally via make test-integration and in CI pipeline
+    - Use testify assertions for readability: require.NoError, assert.Equal, assert.NotNil
+  </constraints>
+
+  <interfaces>
+    <interface>
+      <name>store.Store</name>
+      <kind>Go interface</kind>
+      <signature>
+        InsertBlocks(ctx context.Context, blocks []*ingest.Block) error
+        GetBlockByHeight(ctx context.Context, height uint64) (*ingest.Block, error)
+        GetBlockByHash(ctx context.Context, hash []byte) (*ingest.Block, error)
+        GetLatestBlock(ctx context.Context) (*ingest.Block, error)
+        MarkBlocksOrphaned(ctx context.Context, heights []uint64) error
+        GetTransactionsByAddress(ctx context.Context, addr []byte, limit, offset int) ([]*ingest.Transaction, error)
+      </signature>
+      <path>internal/store/store.go</path>
+    </interface>
+
+    <interface>
+      <name>rpc.Client</name>
+      <kind>Go struct</kind>
+      <signature>
+        GetBlockByNumber(ctx context.Context, height uint64) (*types.Block, error)
+        GetTransactionReceipt(ctx context.Context, txHash common.Hash) (*types.Receipt, error)
+      </signature>
+      <path>internal/rpc/client.go</path>
+    </interface>
+
+    <interface>
+      <name>BackfillCoordinator</name>
+      <kind>Go struct</kind>
+      <signature>
+        Backfill(ctx context.Context, startHeight, endHeight uint64) error
+      </signature>
+      <path>internal/index/backfill.go</path>
+    </interface>
+
+    <interface>
+      <name>LiveTailCoordinator</name>
+      <kind>Go struct</kind>
+      <signature>
+        Start(ctx context.Context) error
+        Stop() error
+      </signature>
+      <path>internal/index/livetail.go</path>
+    </interface>
+
+    <interface>
+      <name>ReorgHandler</name>
+      <kind>Go struct</kind>
+      <signature>
+        HandleReorg(ctx context.Context, newBlock *ingest.Block) error
+      </signature>
+      <path>internal/index/reorg.go</path>
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Use Go standard library testing package with testify for assertions. Integration tests tagged with //go:build integration to separate from unit tests. Use testcontainers-go for isolated PostgreSQL instances. Apply all migrations to test database to match production schema. Create test fixtures for deterministic mock data (blocks, transactions, logs). Table-driven tests for parameterized scenarios. Cleanup resources (connections, containers) with defer. Test coverage &gt;70% for critical paths. All tests complete in &lt;5 minutes. Tests must be deterministic and reproducible.
+    </standards>
+
+    <locations>
+      internal/index/integration_test.go (main integration test setup)
+      internal/index/backfill_integration_test.go (backfill tests)
+      internal/index/livetail_integration_test.go (live-tail tests)
+      internal/index/reorg_integration_test.go (reorg tests)
+      internal/rpc/client_integration_test.go (RPC client tests)
+      internal/store/pg/postgres_integration_test.go (database tests)
+      internal/test/fixtures.go (test data generators)
+      internal/test/mocks.go (mock RPC client)
+      internal/test/testcontainer.go (test container setup)
+    </locations>
+
+    <ideas>
+      <idea ac="AC1">
+        Test backfill coordinator with 100 mock blocks, verify all blocks/txs/logs inserted, check foreign keys, validate block hashes, measure completion time &lt;30s
+      </idea>
+
+      <idea ac="AC2">
+        Test live-tail fetches next block after DB head, validates parent hash matches, updates lag metrics, handles missing blocks gracefully, stops on context cancellation
+      </idea>
+
+      <idea ac="AC3">
+        Simulate reorg by inserting chain with different parent hash, verify reorg detected, check orphaned flags set, validate new canonical chain indexed, test depths 1, 3, 6 blocks
+      </idea>
+
+      <idea ac="AC4">
+        Create mock RPC server that fails N times then succeeds, test retry logic with transient errors, verify exponential backoff timing, test permanent error immediate failure, test context cancellation during retry
+      </idea>
+
+      <idea ac="AC5">
+        Test bulk insert 100 blocks using COPY protocol, verify transaction commit/rollback, test cascade delete (delete block → delete txs → delete logs), test unique constraint violations, test connection pool concurrency
+      </idea>
+
+      <idea ac="AC6">
+        Test metrics increment during backfill, verify explorer_blocks_indexed_total, explorer_index_lag_blocks, explorer_rpc_errors_total, test /metrics endpoint Prometheus format, check metrics persist across operations
+      </idea>
+
+      <idea ac="AC7">
+        Capture log output during indexing, verify JSON structure with required fields (time, level, msg, attributes), test log levels work correctly, validate no sensitive data (RPC URLs with API keys) logged
+      </idea>
+
+      <idea ac="AC8">
+        Setup testcontainer with PostgreSQL, apply migrations, verify schema matches production, test cleanup (close connections, terminate container), test isolation (clean state between tests)
+      </idea>
+
+      <idea ac="AC9">
+        Run go test -cover -tags=integration, verify &gt;70% coverage for backfill/livetail/reorg, ensure all tests &lt;5min, test determinism (run 10 times all pass), add Makefile target test-integration
+      </idea>
+
+      <idea ac="AC10">
+        Test complete workflow: backfill 100 blocks → start live-tail → simulate reorg → verify data correct end-to-end, test graceful shutdown with context cancellation, verify no data loss, test restart resume
+      </idea>
+    </ideas>
+  </tests>
+</story-context>

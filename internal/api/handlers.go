@@ -154,6 +154,42 @@ func (s *Server) handleGetAddressTransactions(w http.ResponseWriter, r *http.Req
 	writeJSON(w, http.StatusOK, response)
 }
 
+// handleGetBlockTransactions handles GET /v1/blocks/{height}/transactions - Get transactions for a block
+func (s *Server) handleGetBlockTransactions(w http.ResponseWriter, r *http.Request) {
+	// Parse block height parameter
+	heightParam := chi.URLParam(r, "height")
+
+	// Parse height as integer
+	height, err := strconv.ParseInt(heightParam, 10, 64)
+	if err != nil || height < 0 {
+		writeBadRequest(w, "invalid block height (expected non-negative integer)")
+		return
+	}
+
+	// Parse pagination (default limit=100, max=1000)
+	limit, offset := parsePagination(r, 100, 1000)
+
+	// Create store
+	st := store.NewStore(s.pool.Pool)
+
+	// Query transactions
+	txs, total, err := st.GetBlockTransactions(r.Context(), height, limit, offset)
+	if err != nil {
+		writeInternalError(w, err)
+		return
+	}
+
+	// Build response
+	response := map[string]interface{}{
+		"transactions": txs,
+		"total":        total,
+		"limit":        limit,
+		"offset":       offset,
+	}
+
+	writeJSON(w, http.StatusOK, response)
+}
+
 // handleQueryLogs handles GET /v1/logs - Query event logs with filters
 func (s *Server) handleQueryLogs(w http.ResponseWriter, r *http.Request) {
 	// Parse query parameters

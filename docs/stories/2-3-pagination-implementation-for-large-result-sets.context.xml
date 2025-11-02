@@ -1,0 +1,153 @@
+<story-context id="bmad/bmm/workflows/4-implementation/story-context/template" v="1.0">
+  <metadata>
+    <epicId>2</epicId>
+    <storyId>3</storyId>
+    <title>Pagination Implementation for Large Result Sets</title>
+    <status>drafted</status>
+    <generatedAt>2025-10-31</generatedAt>
+    <generator>BMAD Story Context Workflow</generator>
+    <sourceStoryPath>docs/stories/2-3-pagination-implementation-for-large-result-sets.md</sourceStoryPath>
+  </metadata>
+
+  <story>
+    <asA>API consumer (frontend developer or external integrator)</asA>
+    <iWant>robust and well-tested pagination support for API endpoints that return large result sets (address transactions, event logs, blocks list)</iWant>
+    <soThat>I can efficiently retrieve data in manageable chunks without overwhelming the client or server, navigate through results using limit/offset parameters, and have confidence the pagination handles edge cases correctly</soThat>
+    <tasks>
+      - Task 1: Review and validate existing pagination utilities (AC: #1, #2, #3, #4)
+      - Task 2: Enhance pagination utilities if needed (AC: #1, #2, #3, #4)
+      - Task 3: Write comprehensive pagination tests (AC: #1, #2, #3, #4, #9)
+      - Task 4: Add pagination to blocks endpoint (AC: #5, #8)
+      - Task 5: Add pagination to address transactions endpoint (AC: #6, #8)
+      - Task 6: Add pagination to logs query endpoint (AC: #7, #8)
+      - Task 7: Performance testing and optimization (AC: #8)
+      - Task 8: Integration testing (AC: #5, #6, #7, #9)
+      - Task 9: Update API documentation (AC: #10)
+    </tasks>
+  </story>
+
+  <acceptanceCriteria>
+    AC1: Pagination Query Parameters - All list endpoints support limit and offset query parameters with validation
+    AC2: Maximum Limit Enforcement - API enforces maximum limit of 100 results per request
+    AC3: Pagination Response Metadata - All paginated responses include total, limit, offset metadata
+    AC4: Pagination Utilities Module - Create internal/api/pagination/paginate.go with reusable functions
+    AC5: Integration with Blocks Endpoint - GET /v1/blocks supports pagination
+    AC6: Integration with Address Transactions Endpoint - GET /v1/address/{addr}/txs supports pagination
+    AC7: Integration with Logs Query Endpoint - GET /v1/logs supports pagination for event log filtering
+    AC8: Performance and Indexing - Paginated queries execute in &lt;150ms (p95 latency target)
+    AC9: Error Handling and Validation - Invalid limit/offset values return HTTP 400 with descriptive errors
+    AC10: Documentation and Examples - API endpoints documented with pagination examples
+  </acceptanceCriteria>
+
+  <artifacts>
+    <docs>
+      <doc path="docs/tech-spec-epic-2.md" title="Tech Spec: Epic 2 - API Layer" section="Story 2.3">
+        Story 2.3 enhances pagination implementation. REST API endpoints need pagination for blocks list, address transactions, and event logs. Default limits: blocks=25, txs=50, logs=100. Max limits: blocks=100, txs=100, logs=1000. Response format includes total count metadata.
+      </doc>
+      <doc path="docs/solution-architecture.md" title="Solution Architecture" section="API Server Components">
+        API server uses chi router with middleware stack. pgx driver provides connection pooling (max 10 connections for API). Pagination uses PostgreSQL LIMIT/OFFSET pattern. Composite indexes support efficient pagination queries.
+      </doc>
+      <doc path="docs/PRD.md" title="Product Requirements Document" section="FR006 - Address Transaction History">
+        Address transaction history must support pagination to handle addresses with many transactions. Default limit 50, max 100. Query pattern: SELECT COUNT(*) for total, then SELECT with LIMIT/OFFSET.
+      </doc>
+      <doc path="docs/PRD.md" title="Product Requirements Document" section="NFR002 - Performance API Latency">
+        REST API endpoints must maintain p95 response latency under 150ms for standard queries on indexed data. Requires proper database indexing and query optimization.
+      </doc>
+      <doc path="docs/stories/2-1-rest-api-endpoints-for-blockchain-queries.md" title="Story 2.1: REST API Endpoints" section="Dev Notes">
+        Story 2.1 created internal/api/pagination.go with basic pagination utilities. Pagination already integrated into blocks, address transactions, and event logs endpoints. Test coverage: 36.8% (needs improvement). Performance testing not completed.
+      </doc>
+    </docs>
+
+    <code>
+      <artifact path="internal/api/pagination.go" kind="utility" symbol="parsePagination" lines="8-40" reason="Existing pagination parser that extracts and validates limit/offset from HTTP request. Silently applies defaults and clamps values instead of returning errors. Story 2.3 needs to review if error-based validation is needed."/>
+      <artifact path="internal/api/pagination.go" kind="utility" symbol="validatePagination" lines="42-54" reason="Validation function that checks pagination parameters. Returns ErrInvalidLimit, ErrLimitTooLarge, ErrInvalidOffset. Currently not used by parsePagination - may need integration."/>
+      <artifact path="internal/api/pagination.go" kind="error" symbol="ValidationError" lines="64-74" reason="Custom validation error type for pagination errors. Used by validatePagination function."/>
+      <artifact path="internal/api/pagination_test.go" kind="test" symbol="TestParsePagination" lines="10-94" reason="Unit tests for parsePagination function covering defaults, clamping, invalid inputs. 8 test cases total. Story 2.3 needs to expand coverage to &gt;80%."/>
+      <artifact path="internal/api/pagination_test.go" kind="test" symbol="TestValidatePagination" lines="96-144" reason="Unit tests for validatePagination function. 4 test cases covering valid/invalid scenarios."/>
+      <artifact path="internal/api/handlers.go" kind="handler" symbol="handleListBlocks" lines="22-46" reason="Blocks list handler that uses parsePagination with limit=25, max=100. Calls store.ListBlocks with limit/offset. Returns response with blocks, total, limit, offset metadata."/>
+      <artifact path="internal/api/handlers.go" kind="handler" symbol="handleGetAddressTransactions" reason="Address transactions handler that needs pagination. Must implement COUNT query for total and paginated SELECT with ORDER BY block_height DESC."/>
+      <artifact path="internal/store/queries.go" kind="storage" symbol="ListBlocks" reason="Database query method that accepts limit, offset parameters. Returns blocks array and total count. Uses idx_blocks_orphaned_height index."/>
+      <artifact path="migrations/000002_add_indexes.up.sql" kind="schema" symbol="idx_blocks_orphaned_height" lines="2" reason="Composite index on blocks(orphaned, height DESC) supports efficient pagination of blocks list with ordering."/>
+      <artifact path="migrations/000002_add_indexes.up.sql" kind="schema" symbol="idx_tx_from_addr_block" lines="7" reason="Index on transactions(from_addr, block_height DESC) supports address transaction pagination with ordering."/>
+      <artifact path="migrations/000002_add_indexes.up.sql" kind="schema" symbol="idx_tx_to_addr_block" lines="8" reason="Index on transactions(to_addr, block_height DESC) supports address transaction pagination (to_addr queries)."/>
+      <artifact path="migrations/000002_add_indexes.up.sql" kind="schema" symbol="idx_logs_address_topic0" lines="13" reason="Composite index on logs(address, topic0) supports event log filtering and pagination."/>
+    </code>
+
+    <dependencies>
+      <go>
+        <package name="github.com/go-chi/chi/v5" version="v5.2.3" reason="HTTP router for REST API endpoints"/>
+        <package name="github.com/jackc/pgx/v5" version="v5.7.6" reason="PostgreSQL driver for database queries with pagination"/>
+        <package name="github.com/stretchr/testify" version="v1.10.0" reason="Testing assertions for pagination tests"/>
+        <package name="net/http" version="stdlib" reason="HTTP request handling for query parameter parsing"/>
+        <package name="strconv" version="stdlib" reason="String to int conversion for limit/offset parsing"/>
+      </go>
+    </dependencies>
+  </artifacts>
+
+  <constraints>
+    - Pagination must use existing parsePagination and validatePagination functions from internal/api/pagination.go
+    - Use global logger pattern from Story 1.8: util.Info(), util.Warn(), util.Error() (no logger dependency passing)
+    - Use existing error handling utilities from internal/api/errors.go: writeBadRequest, writeInternalError
+    - Follow Story 2.1 patterns: chi router, middleware stack, CORS, metrics
+    - Database queries must use PostgreSQL LIMIT/OFFSET pattern (not cursor-based pagination)
+    - Response format must include metadata: {data: [...], total: N, limit: L, offset: O}
+    - Default limits: blocks=25, transactions=50, logs=100
+    - Maximum limits: blocks=100, transactions=100, logs=1000
+    - All pagination errors logged with structured logging context
+    - Test coverage target: &gt;80% for pagination package
+    - Performance target: p95 latency &lt;150ms for paginated queries
+    - Use existing database indexes from Story 1.2 (idx_blocks_orphaned_height, idx_tx_from_addr_block, idx_tx_to_addr_block, idx_logs_address_topic0)
+    - Pagination validation: limit must be positive, offset must be non-negative, limit must not exceed max
+    - Two-query pattern: first COUNT(*) for total, then SELECT with LIMIT/OFFSET for results
+    - Story 2.3 enhances and validates existing pagination from Story 2.1 (not creating from scratch)
+  </constraints>
+
+  <interfaces>
+    <interface name="parsePagination" kind="function" signature="parsePagination(r *http.Request, defaultLimit, maxLimit int) (limit, offset int)" path="internal/api/pagination.go">
+      Extracts and validates pagination parameters from HTTP request. Applies defaults and clamps values silently. Returns limit and offset.
+    </interface>
+    <interface name="validatePagination" kind="function" signature="validatePagination(limit, offset, maxLimit int) error" path="internal/api/pagination.go">
+      Validates pagination parameters. Returns error if invalid. Currently not integrated with parsePagination.
+    </interface>
+    <interface name="ListBlocks" kind="storage" signature="ListBlocks(ctx context.Context, limit, offset int) ([]Block, int, error)" path="internal/store/queries.go">
+      Database query method that returns paginated blocks and total count. Uses idx_blocks_orphaned_height index.
+    </interface>
+    <interface name="GET /v1/blocks" kind="REST" signature="GET /v1/blocks?limit={n}&amp;offset={m}" path="internal/api/handlers.go">
+      Blocks list endpoint with pagination support. Returns {blocks: [], total: N, limit: L, offset: O}.
+    </interface>
+    <interface name="GET /v1/address/{addr}/txs" kind="REST" signature="GET /v1/address/{addr}/txs?limit={n}&amp;offset={m}" path="internal/api/handlers.go">
+      Address transactions endpoint with pagination support. Must implement COUNT and paginated SELECT.
+    </interface>
+    <interface name="GET /v1/logs" kind="REST" signature="GET /v1/logs?address={addr}&amp;topic0={topic}&amp;limit={n}&amp;offset={m}" path="internal/api/handlers.go">
+      Event logs filtering endpoint with pagination support. Combines filtering with pagination.
+    </interface>
+  </interfaces>
+
+  <tests>
+    <standards>
+      Testing uses Go's testing package with stretchr/testify for assertions. Unit tests in *_test.go files alongside implementation. Integration tests with real database in separate test files. Test coverage measured with go test -cover. Target: &gt;80% statement coverage for pagination package. Tests should cover: valid parameters, defaults, clamping, invalid inputs, error cases, edge cases (offset &gt; total, limit=0), response format validation.
+    </standards>
+
+    <locations>
+      internal/api/pagination_test.go
+      internal/api/handlers_test.go
+      internal/store/queries_test.go
+    </locations>
+
+    <ideas>
+      - AC1: Test parsePagination with valid, missing, invalid, negative, zero, and excessive limit/offset values
+      - AC2: Test max limit enforcement returns error when limit exceeds configured max
+      - AC3: Test paginated response format includes total, limit, offset fields
+      - AC4: Test pagination utilities with edge cases (negative values, non-numeric strings, missing params)
+      - AC5: Integration test blocks endpoint pagination with various limit/offset combinations
+      - AC6: Integration test address transactions pagination with addresses having 0, 1, 50, 500 transactions
+      - AC7: Integration test logs pagination combined with address/topic filters
+      - AC8: Performance test with EXPLAIN ANALYZE to verify index usage and measure p95 latency
+      - AC9: Test error handling for invalid pagination parameters returns HTTP 400 with descriptive messages
+      - Test offset beyond total returns empty array (not error)
+      - Test COUNT(*) query uses covering index (no full table scan)
+      - Test pagination with large offsets (1000, 5000) to verify performance
+      - Test concurrent pagination requests don't cause connection pool exhaustion
+    </ideas>
+  </tests>
+</story-context>
